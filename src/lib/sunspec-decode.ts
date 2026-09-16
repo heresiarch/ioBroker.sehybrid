@@ -167,6 +167,25 @@ export function decodeRegisters(words: readonly number[], datatype: SunSpecDatat
 }
 
 /**
+ * Encode a float32 into two 16-bit words in LITTLE-ENDIAN WORD ORDER — the exact
+ * inverse of `decodeRegisters(words, 'float32le')`. The low word is `words[0]` and
+ * the high word is `words[1]`; bytes within each word stay big-endian.
+ *
+ * The decoder reads `words[1]` as the high (offset 0) and `words[0]` as the low
+ * (offset 2), so the encoder writes big-endian bytes and returns `[low, high]`.
+ * Verified: `encodeFloat32le(5000)` equals `[0x4000, 0x459c]` (Req 5.1, 5.2, 5.3, 5.4).
+ *
+ * @param value
+ */
+export function encodeFloat32le(value: number): [number, number] {
+    const buf = Buffer.allocUnsafe(4);
+    buf.writeFloatBE(value, 0);
+    const high = buf.readUInt16BE(0); // most-significant 16 bits
+    const low = buf.readUInt16BE(2); // least-significant 16 bits
+    return [low, high]; // words[0] = low, words[1] = high (little-endian WORD order)
+}
+
+/**
  * Decode packed big-endian byte pairs into an ASCII/latin1 string, trimming trailing
  * NUL and space padding (Req 3.7).
  *

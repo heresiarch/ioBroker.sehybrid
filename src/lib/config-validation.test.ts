@@ -9,7 +9,7 @@
 import { expect } from 'chai';
 import fc from 'fast-check';
 import type { ConfigValidationResult } from './config-validation';
-import { validateConfig, CONFIG_BOUNDS } from './config-validation';
+import { CONFIG_BOUNDS, validateConfig } from './config-validation';
 
 // The four fields validateConfig cares about. We build partial configs from these.
 type TestConfig = {
@@ -240,6 +240,241 @@ describe('config-validation => validateConfig', () => {
             const result = validateConfig(withDefaults({ host }) as Partial<ioBroker.AdapterConfig>);
             expect(result.valid).to.equal(false);
             expect(result.errors).to.have.property('host');
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // Task 9.3 — Property-based tests for the control config rules
+    // (design Properties 13-16; Requirements 17.1-17.5)
+    //
+    // Each property isolates ONE field: the base config supplies valid
+    // connection fields (host/port/unitId/pollInterval) and valid values
+    // for the other control fields, so only the field under test can fail.
+    // Control fields are validated only when present, so leaving them out
+    // must keep the config valid.
+    // --------------------------------------------------------------------
+
+    // The full set of fields validateConfig may inspect for control.
+    type ControlTestConfig = TestConfig & {
+        controlEnabled?: unknown;
+        defaultStorageControlMode?: unknown;
+        houseConsumptionStateId?: unknown;
+        wallboxConsumptionStateId?: unknown;
+        maxDischargeLimit?: unknown;
+        sourceMaxAgeSeconds?: unknown;
+    };
+
+    // A base config that is fully valid on every field validateConfig checks.
+    // Overriding a single field lets each property test isolate that field.
+    function baseValidControlConfig(overrides: Partial<ControlTestConfig> = {}): ControlTestConfig {
+        return {
+            host: 'inverter.local',
+            port: 502,
+            unitId: 1,
+            pollInterval: 30,
+            // control fields, all individually valid:
+            defaultStorageControlMode: 1,
+            maxDischargeLimit: 5000,
+            sourceMaxAgeSeconds: 120,
+            ...overrides,
+        };
+    }
+
+    describe('Task 9.3 — control config validation properties', () => {
+        // ----------------------------------------------------------------
+        // Property 13: Default control mode bound (Req 17.1)
+        // Accepted iff integer in [0, 4]; else errors.defaultStorageControlMode.
+        // ----------------------------------------------------------------
+        const defaultStorageControlModeArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid integers in [0, 4]
+            fc.integer({ min: 0, max: 4 }),
+            // invalid integers outside the range
+            fc.integer({ min: -50, max: -1 }),
+            fc.integer({ min: 5, max: 50 }),
+            // non-integers
+            fc.double({ min: -50, max: 50, noNaN: true }).filter(n => !Number.isInteger(n)),
+            // wrong types
+            fc.string(),
+            fc.boolean(),
+        );
+
+        it('Feature: storedge-battery-control, Property 13: Default control mode bound', () => {
+            fc.assert(
+                fc.property(defaultStorageControlModeArb, mode => {
+                    const cfg = baseValidControlConfig({ defaultStorageControlMode: mode });
+                    const expectedOk =
+                        Number.isInteger(mode) &&
+                        (mode as number) >= CONFIG_BOUNDS.defaultStorageControlMode.min &&
+                        (mode as number) <= CONFIG_BOUNDS.defaultStorageControlMode.max;
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    expect(result.valid).to.equal(expectedOk);
+                    if (expectedOk) {
+                        expect(result.errors).to.not.have.property('defaultStorageControlMode');
+                    } else {
+                        expect(result.errors).to.have.property('defaultStorageControlMode');
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 14: Max discharge limit positivity (Req 17.2)
+        // Accepted iff a strictly positive finite number; else
+        // errors.maxDischargeLimit.
+        // ----------------------------------------------------------------
+        const maxDischargeLimitArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid: strictly positive finite numbers
+            fc.double({ min: Number.MIN_VALUE, max: 1_000_000, noNaN: true, noDefaultInfinity: true }),
+            // invalid: zero and negatives
+            fc.constant(0),
+            fc.double({ min: -1_000_000, max: 0, noNaN: true, noDefaultInfinity: true }),
+            // invalid: non-finite numbers
+            fc.constant(Number.NaN),
+            fc.constant(Number.POSITIVE_INFINITY),
+            fc.constant(Number.NEGATIVE_INFINITY),
+            // wrong types
+            fc.string(),
+            fc.boolean(),
+        );
+
+        it('Feature: storedge-battery-control, Property 14: Max discharge limit positivity', () => {
+            fc.assert(
+                fc.property(maxDischargeLimitArb, limit => {
+                    const cfg = baseValidControlConfig({ maxDischargeLimit: limit });
+                    const expectedOk = typeof limit === 'number' && Number.isFinite(limit) && limit > 0;
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    expect(result.valid).to.equal(expectedOk);
+                    if (expectedOk) {
+                        expect(result.errors).to.not.have.property('maxDischargeLimit');
+                    } else {
+                        expect(result.errors).to.have.property('maxDischargeLimit');
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 15: Source max age is a positive integer (Req 17.3)
+        // Accepted iff a positive integer; else errors.sourceMaxAgeSeconds.
+        // ----------------------------------------------------------------
+        const sourceMaxAgeArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid: positive integers
+            fc.integer({ min: 1, max: 100_000 }),
+            // invalid: zero and negative integers
+            fc.constant(0),
+            fc.integer({ min: -100_000, max: -1 }),
+            // invalid: non-integers
+            fc.double({ min: -100, max: 100_000, noNaN: true }).filter(n => !Number.isInteger(n)),
+            // wrong types
+            fc.string(),
+            fc.boolean(),
+        );
+
+        it('Feature: storedge-battery-control, Property 15: Source max age is a positive integer', () => {
+            fc.assert(
+                fc.property(sourceMaxAgeArb, age => {
+                    const cfg = baseValidControlConfig({ sourceMaxAgeSeconds: age });
+                    const expectedOk = Number.isInteger(age) && (age as number) > 0;
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    expect(result.valid).to.equal(expectedOk);
+                    if (expectedOk) {
+                        expect(result.errors).to.not.have.property('sourceMaxAgeSeconds');
+                    } else {
+                        expect(result.errors).to.have.property('sourceMaxAgeSeconds');
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 16: Source ids required when control is enabled (Req 17.4)
+        // With controlEnabled === true, both houseConsumptionStateId and
+        // wallboxConsumptionStateId must be non-empty strings; when either is
+        // missing/empty the respective field error is set. When controlEnabled
+        // is false/absent they are not required.
+        // ----------------------------------------------------------------
+
+        // A value that is either a valid non-empty string id, or an invalid id
+        // (empty string / wrong type / missing).
+        const sourceIdArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid: non-empty strings
+            fc.string({ minLength: 1, maxLength: 60 }),
+            // invalid: empty string
+            fc.constant(''),
+            // invalid: wrong types / missing
+            fc.integer(),
+            fc.boolean(),
+            fc.constant(undefined),
+            fc.constant(null),
+        );
+
+        function isValidId(id: unknown): boolean {
+            return typeof id === 'string' && id.length > 0;
+        }
+
+        it('Feature: storedge-battery-control, Property 16: Source ids required when control is enabled', () => {
+            fc.assert(
+                fc.property(fc.boolean(), sourceIdArb, sourceIdArb, (controlEnabled, houseId, wallboxId) => {
+                    const overrides: Partial<ControlTestConfig> = { controlEnabled };
+                    // Only attach ids when they are defined so we can also exercise
+                    // the "missing" case (undefined) without introducing the key.
+                    if (houseId !== undefined) {
+                        overrides.houseConsumptionStateId = houseId;
+                    }
+                    if (wallboxId !== undefined) {
+                        overrides.wallboxConsumptionStateId = wallboxId;
+                    }
+                    const cfg = baseValidControlConfig(overrides);
+
+                    const houseOk = isValidId(houseId);
+                    const wallboxOk = isValidId(wallboxId);
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    if (controlEnabled) {
+                        // Ids are required only when control is enabled.
+                        if (houseOk) {
+                            expect(result.errors).to.not.have.property('houseConsumptionStateId');
+                        } else {
+                            expect(result.errors).to.have.property('houseConsumptionStateId');
+                        }
+                        if (wallboxOk) {
+                            expect(result.errors).to.not.have.property('wallboxConsumptionStateId');
+                        } else {
+                            expect(result.errors).to.have.property('wallboxConsumptionStateId');
+                        }
+                        expect(result.valid).to.equal(houseOk && wallboxOk);
+                    } else {
+                        // When control is disabled, the ids are never required,
+                        // regardless of their value, so the config stays valid.
+                        expect(result.errors).to.not.have.property('houseConsumptionStateId');
+                        expect(result.errors).to.not.have.property('wallboxConsumptionStateId');
+                        expect(result.valid).to.equal(true);
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Regression example: a config with only the connection fields (no
+        // control fields at all) remains valid — control fields are validated
+        // only when present (Req 17.1-17.4).
+        // ----------------------------------------------------------------
+        it('accepts a connection-only config with no control fields present', () => {
+            const cfg: TestConfig = { host: 'inverter.local', port: 502, unitId: 1, pollInterval: 30 };
+            const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+            expect(result.valid).to.equal(true);
+            expect(result.errors).to.deep.equal({});
         });
     });
 });

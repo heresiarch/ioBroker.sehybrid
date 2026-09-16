@@ -130,7 +130,13 @@
     "host": "",
     "port": 502,
     "unitId": 1,
-    "pollInterval": 30
+    "pollInterval": 30,
+    "controlEnabled": false,
+    "defaultStorageControlMode": 1,
+    "houseConsumptionStateId": "",
+    "wallboxConsumptionStateId": "",
+    "maxDischargeLimit": 5000,
+    "sourceMaxAgeSeconds": 120
   },
   "objects": [],
   "instanceObjects": [

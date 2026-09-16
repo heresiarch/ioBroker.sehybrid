@@ -21,5 +21,22 @@
     "Invalid host": "Invalid host",
     "Invalid port": "Invalid port",
     "Invalid unit ID": "Invalid unit ID",
-    "Invalid polling interval": "Invalid polling interval"
+    "Invalid polling interval": "Invalid polling interval",
+    "Battery control": "电池控制",
+    "Enable battery control": "启用电池控制",
+    "StorEdge portal warning": "启用控制之前，您必须在 SolarEdge 监控门户 / SetApp 中禁用 StorEdge 存储配置文件，否则远程控制将在约 10 秒后恢复为最大化自用。",
+    "Default Storage Control Mode": "默认存储控制模式",
+    "House consumption state": "家庭用电状态",
+    "Wallbox consumption state": "充电桩用电状态",
+    "Max discharge limit (W)": "最大放电限值 (W)",
+    "Source max age (s)": "数据源最大有效期 (s)",
+    "Mode 0 Disabled": "已禁用",
+    "Mode 1 Maximize Self Consumption": "最大化自用",
+    "Mode 2 Time of Use": "分时电价 / 配置文件编程",
+    "Mode 3 Backup Only": "仅备用",
+    "Mode 4 Remote Control": "远程控制",
+    "Invalid default control mode": "默认控制模式必须是 0 到 4 之间的整数",
+    "Invalid max discharge limit": "最大放电限值必须为正数",
+    "Invalid source max age": "数据源最大有效期必须为正整数",
+    "Source id required": "启用控制时需要一个外部状态 ID"
 }

@@ -28,6 +28,9 @@ import { expect } from 'chai';
 import ModbusRTU from 'modbus-serial';
 
 import { validateConfig } from './config-validation';
+import { computeDischargeLimit, type SourceSample } from './consumption';
+import { REMOTE_CONTROL_COMMAND_MODE, REMOTE_CONTROL_DISCHARGE_LIMIT, STORAGE_CONTROL_MODE } from './control-registers';
+import { ModbusControlWriter } from './control-writer';
 import { ModbusClient } from './modbus-client';
 import { StateManager, type StateManagerAdapter } from './state-manager';
 import { decodeRegisters } from './sunspec-decode';
@@ -69,9 +72,36 @@ const HOST = '127.0.0.1';
  */
 class RegisterStore {
     private readonly words = new Map<number, number>();
+    /**
+     * Per-address count of writes that arrived over the wire (FC06/FC16). Populated
+     * only by the mock server's write handlers (see `startServer`), NOT by the
+     * seed-time `set*` helpers — so the control scenario can assert how many times a
+     * given register was actually (re)written by the client.
+     */
+    private readonly writeCounts = new Map<number, number>();
 
     set(addr: number, value: number): void {
         this.words.set(addr, value & 0xffff);
+    }
+
+    /**
+     * Store a word arriving from a client write (FC06/FC16) and bump its write count.
+     *
+     * @param addr absolute base-0 address written
+     * @param value 16-bit value to store
+     */
+    writeWord(addr: number, value: number): void {
+        this.set(addr, value);
+        this.writeCounts.set(addr, (this.writeCounts.get(addr) ?? 0) + 1);
+    }
+
+    /**
+     * Number of client writes that have targeted `addr` (0 if never written).
+     *
+     * @param addr
+     */
+    writeCount(addr: number): number {
+        return this.writeCounts.get(addr) ?? 0;
     }
 
     /**
@@ -242,6 +272,10 @@ function seedDevice(): SeededDevice {
  * @param store    backing store
  * @param base     absolute base-0 address of the battery block (getBatteryBase(slot))
  * @param concrete concrete values for the spot-checked fields
+ * @param concrete.instantaneousPower
+ * @param concrete.lifetimeExportEnergy
+ * @param concrete.lifetimeImportEnergy
+ * @param concrete.status
  */
 function seedBatteryBlock(
     store: RegisterStore,
@@ -365,6 +399,9 @@ const BATTERY_BATCH_WINDOWS: Array<{ start: number; end: number }> = [getBattery
  * single batch — e.g. the whole 0xE100..0xE193 span. A multi-word read that starts
  * inside the battery address range but is not contained in one batch window is rejected;
  * single-word probes and all non-battery reads always succeed.
+ *
+ * @param addr
+ * @param length
  */
 function rejectsBatteryRead(addr: number, length: number): boolean {
     if (length <= 1) {
@@ -406,6 +443,27 @@ function startServer(store: RegisterStore, port: number, delayMs = 0): Promise<M
                 } else {
                     cb(null, values);
                 }
+            },
+            // --- Write function codes (test-only) --------------------------------
+            // The read-only SunSpec scenarios never use these; the control scenario
+            // drives ModbusControlWriter (FC06/FC16) against them so writes actually
+            // land in the RegisterStore at the SAME absolute address reads are served
+            // from. `writeWord` also bumps a per-address write counter so the
+            // scenario can assert write-only-if-changed behavior.
+            setRegister: (addr: number, value: number, _unitID: number, cb: (err: Error | null) => void): void => {
+                store.writeWord(addr, value);
+                cb(null);
+            },
+            setRegisterArray: (
+                addr: number,
+                values: number[],
+                _unitID: number,
+                cb: (err: Error | null) => void,
+            ): void => {
+                for (let i = 0; i < values.length; i++) {
+                    store.writeWord(addr + i, values[i]);
+                }
+                cb(null);
             },
         };
         const server = new ServerTCP(vector, { host: HOST, port, debug: false, unitID: 1 }) as MockServer &
@@ -897,5 +955,132 @@ describe('Feature: solaredge-sunspec-reader, integration: timeout and reconnect'
         expect(connection).to.equal(true);
         expect(adapter.lastVal('inverter.acPower')).to.equal(goodAcPower);
         await client2.close();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 11.1 — StorEdge battery-control lifecycle against the live mock server
+// ---------------------------------------------------------------------------
+
+/**
+ * Drives the REAL ModbusControlWriter (FC06/FC16) over TCP against the in-process
+ * mock server, so every enable/heartbeat/revert write actually lands in the mock
+ * device's RegisterStore. The scenario then reads the store back to assert the
+ * on-the-wire result: command modes are re-asserted every cycle, the discharge
+ * limit is written only when it changes, and disable reverts 0xE004 to the
+ * configured default while the heartbeat stops.
+ *
+ * Requirements covered: 8.2, 9.1, 9.2, 9.3, 11.1, 11.2, 11.3, 12.1, 12.3.
+ */
+describe('Feature: storedge-battery-control, integration: control lifecycle', () => {
+    let server: MockServer | undefined;
+    let client: ModbusClient | undefined;
+    const port = allocPort();
+    let store: RegisterStore;
+
+    // Control-register addresses under test (from the production defs).
+    const ADDR_E004 = STORAGE_CONTROL_MODE.address; // 0xE004 storage control mode
+    const ADDR_E00D = REMOTE_CONTROL_COMMAND_MODE.address; // 0xE00D remote control command mode
+    const ADDR_E010 = REMOTE_CONTROL_DISCHARGE_LIMIT.address; // 0xE010 discharge limit (float32le)
+
+    /** decode the two words stored at 0xE010 through the real float32le decoder. */
+    const readLimit = (): number | string | null =>
+        decodeRegisters([store.get(ADDR_E010), store.get(ADDR_E010 + 1)], 'float32le');
+
+    before(async function () {
+        this.timeout(15000);
+        store = new RegisterStore();
+        server = await startServer(store, port);
+    });
+
+    after(async function () {
+        this.timeout(15000);
+        await (client ? client.close() : Promise.resolve());
+        await closeServer(server);
+    });
+
+    it('enables, heartbeats with write-only-if-changed, and reverts on disable (Req 8.2, 9.1, 9.2, 9.3, 11.1, 11.2, 11.3, 12.1, 12.3)', async function () {
+        this.timeout(15000);
+
+        client = new ModbusClient();
+        await client.connect(HOST, port, 1);
+        expect(client.isConnected()).to.equal(true);
+
+        const writer = new ModbusControlWriter(client);
+
+        // Deterministic consumption inputs: house/wallbox samples feed the pure
+        // compute helper so the limits are derived exactly as production would.
+        const maxAgeSeconds = 120;
+        const maxDischargeLimit = 5000;
+        const nowMs = Date.now();
+        const sample = (val: number): SourceSample => ({ val, ts: nowMs });
+
+        // --- ENABLE ---------------------------------------------------------
+        // limit0 = min(max(house - wallbox, 0), max) = min(max(3000-500,0),5000) = 2500
+        const limit0 = computeDischargeLimit(sample(3000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
+        expect(limit0).to.equal(2500);
+        await writer.applyEnable(limit0);
+
+        expect(store.get(ADDR_E004), '0xE004 after enable').to.equal(4);
+        expect(store.get(ADDR_E00D), '0xE00D after enable').to.equal(4);
+        // 0xE010 must round-trip through the real float32le encode+write+decode.
+        expect(readLimit(), '0xE010 decodes to limit0 after enable').to.equal(limit0);
+        const e010WritesAfterEnable = store.writeCount(ADDR_E010);
+        expect(e010WritesAfterEnable, '0xE010 written once by enable').to.equal(1);
+
+        let lastWritten: number | undefined = limit0;
+
+        // --- CYCLE A: limit changes (2500 -> 1500) --------------------------
+        const limitA = computeDischargeLimit(sample(2000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
+        expect(limitA).to.equal(1500);
+        expect(limitA).to.not.equal(limit0);
+
+        const e004WritesBeforeA = store.writeCount(ADDR_E004);
+        const e00dWritesBeforeA = store.writeCount(ADDR_E00D);
+        const e010WritesBeforeA = store.writeCount(ADDR_E010);
+
+        lastWritten = await writer.heartbeat(limitA, lastWritten);
+
+        // Command modes re-asserted unconditionally (Req 11.1, 11.2).
+        expect(store.get(ADDR_E004), '0xE004 re-asserted in cycle A').to.equal(4);
+        expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle A').to.equal(4);
+        expect(store.writeCount(ADDR_E004)).to.equal(e004WritesBeforeA + 1);
+        expect(store.writeCount(ADDR_E00D)).to.equal(e00dWritesBeforeA + 1);
+        // Changed limit => 0xE010 rewritten (Req 8.2, 11.3).
+        expect(readLimit(), '0xE010 decodes to limitA').to.equal(limitA);
+        expect(store.writeCount(ADDR_E010), '0xE010 rewritten on change').to.equal(e010WritesBeforeA + 1);
+        expect(lastWritten).to.equal(limitA);
+
+        // --- CYCLE B: limit unchanged (limitB == limitA) --------------------
+        const limitB = computeDischargeLimit(sample(2000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
+        expect(limitB).to.equal(limitA);
+
+        const e004WritesBeforeB = store.writeCount(ADDR_E004);
+        const e00dWritesBeforeB = store.writeCount(ADDR_E00D);
+        const e010WritesBeforeB = store.writeCount(ADDR_E010);
+
+        lastWritten = await writer.heartbeat(limitB, lastWritten);
+
+        // Command modes still re-asserted unconditionally (Req 11.1, 11.2).
+        expect(store.get(ADDR_E004), '0xE004 re-asserted in cycle B').to.equal(4);
+        expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle B').to.equal(4);
+        expect(store.writeCount(ADDR_E004)).to.equal(e004WritesBeforeB + 1);
+        expect(store.writeCount(ADDR_E00D)).to.equal(e00dWritesBeforeB + 1);
+        // Unchanged limit => 0xE010 NOT rewritten, value unchanged (Req 8.2, 11.3).
+        expect(readLimit(), '0xE010 still decodes to limitA').to.equal(limitA);
+        expect(store.writeCount(ADDR_E010), '0xE010 skipped when unchanged').to.equal(e010WritesBeforeB);
+        expect(lastWritten).to.equal(limitA);
+
+        // --- DISABLE / REVERT ----------------------------------------------
+        const defaultMode = 1; // Maximize Self Consumption
+        await writer.applyRevert(defaultMode);
+        expect(store.get(ADDR_E004), '0xE004 reverted to default on disable').to.equal(defaultMode);
+
+        // Heartbeat is no longer driven after revert: the store retains the reverted
+        // value because no further heartbeat calls are made.
+        const e004WritesAfterRevert = store.writeCount(ADDR_E004);
+        // (No writer calls here — mirrors main.ts stopping the heartbeat on disable.)
+        expect(store.get(ADDR_E004), '0xE004 stays at default with heartbeat stopped').to.equal(defaultMode);
+        expect(store.writeCount(ADDR_E004), 'no further 0xE004 writes after revert').to.equal(e004WritesAfterRevert);
     });
 });

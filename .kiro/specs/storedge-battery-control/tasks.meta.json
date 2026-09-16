@@ -1,0 +1,450 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Implement FC06/FC16 write methods in `src/lib/modbus-client.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397075
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549408014
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549622893
+      }
+    ],
+    "2.1 Create `src/lib/control-registers.ts` definition set + resolver": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397161
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549409405
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549623839
+      }
+    ],
+    "2.2 Add `encodeFloat32le` to `src/lib/sunspec-decode.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397221
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549638089
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549796640
+      }
+    ],
+    "3.1 Create `src/lib/consumption.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397276
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549410804
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549625216
+      }
+    ],
+    "4.1 Add `ensureControlStates()` + `setControlAck()` to `src/lib/state-manager.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397337
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549829424
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550057495
+      }
+    ],
+    "5.1 Create `src/lib/control-writer.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397409
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549830285
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550058493
+      }
+    ],
+    "6. Checkpoint - core control building blocks complete": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397460
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550267897
+      }
+    ],
+    "7.1 Add the config gate, subscriptions, and enable sequence in `onReady` (`src/main.ts`)": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397510
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550274916
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550623980
+      }
+    ],
+    "7.2 Implement `onStateChange` dispatch in `src/main.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397561
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550631103
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550742593
+      }
+    ],
+    "7.3 Add the heartbeat tail to `pollOnce` and the disable-revert transition in `src/main.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397615
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550747401
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550870943
+      }
+    ],
+    "8. Checkpoint - control fully wired into main.ts": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397674
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550882345
+      }
+    ],
+    "9.1 Extend `src/lib/adapter-config.d.ts` and `io-package.json` native": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397726
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549411680
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549626292
+      }
+    ],
+    "9.2 Extend `src/lib/config-validation.ts` with control rules": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397806
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549639136
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549797672
+      }
+    ],
+    "10.1 Extend `src-admin/src/components/Settings.tsx`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397857
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550072740
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550260915
+      }
+    ],
+    "10.2 Add the new i18n keys to all eleven `src-admin/src/i18n/*.json` files": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397910
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550275959
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550625197
+      }
+    ],
+    "11.2 Run build/typecheck and the full test suite": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549397958
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551187831
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551413349
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549398008
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551414353
+      }
+    ],
+    "1. Add Modbus FC06/FC16 write function codes and revise the read-only invariant": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549622980
+      }
+    ],
+    "3. Implement the pure consumption compute helper": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549625318
+      }
+    ],
+    "2. Define StorEdge control registers and the little-endian float32 encoder": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549796697
+      }
+    ],
+    "9. Add configuration type, native defaults, and validation": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549797774
+      }
+    ],
+    "1.2 Revise the existing read-only property test in `src/lib/modbus-client.test.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549825249
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550053705
+      }
+    ],
+    "1.3 Write property tests for write forwarding, selection, and not-connected rejection": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549826649
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550055142
+      }
+    ],
+    "3.2 Write property tests for validity and clamping": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789549828023
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550056071
+      }
+    ],
+    "4. Create the writable expert control states in the state manager": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550057558
+      }
+    ],
+    "5. Implement the control-writer dispatch layer": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550058594
+      }
+    ],
+    "2.3 Write property test for the float32le round-trip": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550073720
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550258888
+      }
+    ],
+    "4.2 Write example tests for control-state metadata": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550075093
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550259880
+      }
+    ],
+    "5.2 Write property tests for dispatch, write-only-if-changed, heartbeat, and never-written registers": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550076480
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550257485
+      }
+    ],
+    "9.3 Write property tests for control config validation": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550077356
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550256078
+      }
+    ],
+    "10. Add the React admin control settings + i18n": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550625268
+      }
+    ],
+    "7. Wire control into main.ts": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550871040
+      }
+    ],
+    "7.4 Write property tests for read-only-when-disabled, ack handling, dispatch/retain, and revert scope": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550883733
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551181223
+      }
+    ],
+    "11.1 Add the control scenario to `src/lib/integration.test.ts`": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789550884742
+      },
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551182187
+      }
+    ],
+    "11. Integration scenario and verification": [
+      {
+        "executionId": "91d268f4-cf8f-41c1-9c8c-64852f3846fc",
+        "chatSessionId": "sess_b7d4acd1-1adf-4ef2-984a-8c456b9413ba",
+        "timestamp": 1789551413432
+      }
+    ]
+  }
+}

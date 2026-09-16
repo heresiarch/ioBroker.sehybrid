@@ -415,4 +415,168 @@ describe('state-manager => StateManager', () => {
             );
         });
     });
+
+    // --------------------------------------------------------------------
+    // Task 4.2 — Example tests for control-state metadata
+    // (Req 13.1, 13.2, 13.3, 13.6)
+    //
+    // The writable expert `control` states are created OUTSIDE the register-map
+    // read model by ensureControlStates(). These tests assert the state/channel
+    // metadata (expert flag, read/write, type, unit), idempotency, ack writes,
+    // and that no control id is ever derived from the SunSpec register map.
+    // --------------------------------------------------------------------
+
+    describe('ensureControlStates metadata (Req 13.1, 13.2, 13.3, 13.6)', () => {
+        /** The exact six control ids from the design's control-state table. */
+        const CONTROL_IDS = [
+            'control.storageControlMode',
+            'control.remoteControlCommandMode',
+            'control.remoteControlDischargeLimit',
+            'control.remoteControlCommandTimeout',
+            'control.computedDischargeLimit',
+            'control.controlActive',
+        ] as const;
+
+        /**
+         * Read the created state common for a control id, asserting the object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function controlCommon(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        it("marks the 'control' channel object as expert (Req 13.3)", async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureControlStates();
+
+            const channel = adapter.objects.get('control');
+            expect(channel, 'control channel').to.not.equal(undefined);
+            expect(channel!.type).to.equal('channel');
+            const common = channel!.common as ioBroker.ChannelCommon;
+            expect(common.name).to.equal('Control');
+            expect((common as ioBroker.ChannelCommon & { expert?: boolean }).expert).to.equal(true);
+        });
+
+        it('creates each expert writable raw state as read+write with correct type/unit (Req 13.1, 13.3)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureControlStates();
+
+            // storageControlMode (raw 0xE004): number, read+write, expert, no unit.
+            const storageMode = controlCommon(adapter, 'control.storageControlMode');
+            expect(storageMode.type).to.equal('number');
+            expect(storageMode.read).to.equal(true);
+            expect(storageMode.write).to.equal(true);
+            expect(storageMode.expert).to.equal(true);
+            expect(storageMode).to.not.have.property('unit');
+
+            // remoteControlCommandMode (raw 0xE00D): number, read+write, expert, no unit.
+            const commandMode = controlCommon(adapter, 'control.remoteControlCommandMode');
+            expect(commandMode.type).to.equal('number');
+            expect(commandMode.read).to.equal(true);
+            expect(commandMode.write).to.equal(true);
+            expect(commandMode.expert).to.equal(true);
+            expect(commandMode).to.not.have.property('unit');
+
+            // remoteControlDischargeLimit (raw 0xE010): number W, read+write, expert.
+            const dischargeLimit = controlCommon(adapter, 'control.remoteControlDischargeLimit');
+            expect(dischargeLimit.type).to.equal('number');
+            expect(dischargeLimit.read).to.equal(true);
+            expect(dischargeLimit.write).to.equal(true);
+            expect(dischargeLimit.expert).to.equal(true);
+            expect(dischargeLimit.unit).to.equal('W');
+        });
+
+        it('creates remoteControlCommandTimeout as read-only (read=true, write=false) with unit s (Req 13.2)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureControlStates();
+
+            const timeout = controlCommon(adapter, 'control.remoteControlCommandTimeout');
+            expect(timeout.type).to.equal('number');
+            expect(timeout.read).to.equal(true);
+            expect(timeout.write).to.equal(false);
+            expect(timeout.expert).to.equal(true);
+            expect(timeout.unit).to.equal('s');
+        });
+
+        it('creates computedDischargeLimit (W) and controlActive (boolean) as read-only reflections (Req 13.2)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureControlStates();
+
+            const computed = controlCommon(adapter, 'control.computedDischargeLimit');
+            expect(computed.type).to.equal('number');
+            expect(computed.read).to.equal(true);
+            expect(computed.write).to.equal(false);
+            expect(computed.unit).to.equal('W');
+
+            const active = controlCommon(adapter, 'control.controlActive');
+            expect(active.type).to.equal('boolean');
+            expect(active.read).to.equal(true);
+            expect(active.write).to.equal(false);
+        });
+
+        it('is idempotent: calling ensureControlStates twice issues no duplicate creates (Property 7)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            await manager.ensureControlStates();
+            await manager.ensureControlStates();
+
+            // The control channel and every control state are created exactly once,
+            // and no call ever hit an already-existing id (Set-based no-op).
+            for (const id of ['control', ...CONTROL_IDS]) {
+                expect(adapter.createCalls.get(id) ?? 0, `${id} createCalls`).to.equal(1);
+                expect(adapter.createAttempts.get(id) ?? 0, `${id} createAttempts`).to.equal(0);
+            }
+        });
+
+        it('setControlAck(name, value) writes { val, ack: true } to control.<name> (Req 13.6)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureControlStates();
+
+            await manager.setControlAck('remoteControlDischargeLimit', 3200);
+            await manager.setControlAck('controlActive', true);
+
+            const numWrites = adapter.writesFor('control.remoteControlDischargeLimit');
+            expect(numWrites.length).to.equal(1);
+            expect(numWrites[0].val).to.equal(3200);
+            expect(numWrites[0].ack).to.equal(true);
+
+            const boolWrites = adapter.writesFor('control.controlActive');
+            expect(boolWrites.length).to.equal(1);
+            expect(boolWrites[0].val).to.equal(true);
+            expect(boolWrites[0].ack).to.equal(true);
+        });
+
+        it('derives no control state from the SunSpec register map; control ids are exactly the six design states (Req 13.6)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            // Ensuring every SunSpec value def via the register-map-driven read path
+            // must never produce an id under `control.`.
+            for (const def of allValueDefs) {
+                await manager.ensureState(channelForDef(def), def);
+            }
+            for (const def of allBatteryValueDefs) {
+                await manager.ensureState('battery.1', def);
+            }
+            const controlIdsFromReadModel = [...adapter.objects.keys()].filter(id => id.startsWith('control.'));
+            expect(controlIdsFromReadModel, 'SunSpec read path must not create control.* states').to.deep.equal([]);
+
+            // Control states come only from ensureControlStates(), and are exactly
+            // the six ids from the design table (plus the `control` channel object).
+            await manager.ensureControlStates();
+            const createdControlIds = [...adapter.objects.keys()].filter(id => id.startsWith('control.')).sort();
+            expect(createdControlIds).to.deep.equal([...CONTROL_IDS].sort());
+        });
+    });
 });

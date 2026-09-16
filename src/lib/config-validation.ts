@@ -16,10 +16,21 @@ export const CONFIG_BOUNDS = {
     unitId: { min: 0, max: 247 },
     /** Polling interval in seconds, integer 5..3600 (Req 5.1). */
     pollInterval: { min: 5, max: 3600 },
+    /** Default storage control mode, integer 0..4 (Req 17.1). */
+    defaultStorageControlMode: { min: 0, max: 4 },
 } as const;
 
 /** Fields that {@link validateConfig} can report an error for. */
-export type ConfigField = 'host' | 'port' | 'unitId' | 'pollInterval';
+export type ConfigField =
+    | 'host'
+    | 'port'
+    | 'unitId'
+    | 'pollInterval'
+    | 'defaultStorageControlMode'
+    | 'houseConsumptionStateId'
+    | 'wallboxConsumptionStateId'
+    | 'maxDischargeLimit'
+    | 'sourceMaxAgeSeconds';
 
 export interface ConfigValidationResult {
     /** True if and only if `errors` is empty. */
@@ -38,6 +49,12 @@ export interface ConfigValidationResult {
  * - `pollInterval` is an integer in [5, 3600].
  *
  * Any input violating a bound is rejected with an error naming the offending field.
+ *
+ * The control fields (`defaultStorageControlMode`, `maxDischargeLimit`,
+ * `sourceMaxAgeSeconds`, `houseConsumptionStateId`, `wallboxConsumptionStateId`)
+ * are validated only when present (Req 17.1-17.4), so callers that supply just the
+ * connection fields (e.g. the `testConnection` handler) are unaffected. When
+ * `controlEnabled` is true, both consumption source ids are additionally required.
  *
  * @param cfg
  */
@@ -79,6 +96,52 @@ export function validateConfig(cfg: Partial<ioBroker.AdapterConfig>): ConfigVali
         (pollInterval as number) > CONFIG_BOUNDS.pollInterval.max
     ) {
         errors.pollInterval = `pollInterval must be between ${CONFIG_BOUNDS.pollInterval.min} and ${CONFIG_BOUNDS.pollInterval.max} seconds`;
+    }
+
+    // defaultStorageControlMode: when present, integer in [0, 4] (Req 17.1)
+    const { defaultStorageControlMode } = cfg;
+    if (defaultStorageControlMode !== undefined) {
+        if (!Number.isInteger(defaultStorageControlMode)) {
+            errors.defaultStorageControlMode = 'defaultStorageControlMode must be an integer';
+        } else if (
+            defaultStorageControlMode < CONFIG_BOUNDS.defaultStorageControlMode.min ||
+            defaultStorageControlMode > CONFIG_BOUNDS.defaultStorageControlMode.max
+        ) {
+            errors.defaultStorageControlMode = `defaultStorageControlMode must be between ${CONFIG_BOUNDS.defaultStorageControlMode.min} and ${CONFIG_BOUNDS.defaultStorageControlMode.max}`;
+        }
+    }
+
+    // maxDischargeLimit: when present, a strictly positive number (Req 17.2)
+    const { maxDischargeLimit } = cfg;
+    if (maxDischargeLimit !== undefined) {
+        if (typeof maxDischargeLimit !== 'number' || !Number.isFinite(maxDischargeLimit)) {
+            errors.maxDischargeLimit = 'maxDischargeLimit must be a number';
+        } else if (maxDischargeLimit <= 0) {
+            errors.maxDischargeLimit = 'maxDischargeLimit must be a positive number';
+        }
+    }
+
+    // sourceMaxAgeSeconds: when present, a positive integer (Req 17.3)
+    const { sourceMaxAgeSeconds } = cfg;
+    if (sourceMaxAgeSeconds !== undefined) {
+        if (!Number.isInteger(sourceMaxAgeSeconds)) {
+            errors.sourceMaxAgeSeconds = 'sourceMaxAgeSeconds must be an integer';
+        } else if (sourceMaxAgeSeconds <= 0) {
+            errors.sourceMaxAgeSeconds = 'sourceMaxAgeSeconds must be a positive integer';
+        }
+    }
+
+    // When control is enabled, the consumption source ids must be non-empty strings (Req 17.4)
+    if (cfg.controlEnabled === true) {
+        const { houseConsumptionStateId } = cfg;
+        if (typeof houseConsumptionStateId !== 'string' || houseConsumptionStateId.length === 0) {
+            errors.houseConsumptionStateId = 'houseConsumptionStateId must be a non-empty string';
+        }
+
+        const { wallboxConsumptionStateId } = cfg;
+        if (typeof wallboxConsumptionStateId !== 'string' || wallboxConsumptionStateId.length === 0) {
+            errors.wallboxConsumptionStateId = 'wallboxConsumptionStateId must be a non-empty string';
+        }
     }
 
     return { valid: Object.keys(errors).length === 0, errors };

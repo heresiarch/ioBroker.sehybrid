@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import fc from 'fast-check';
 import type { SunSpecDatatype } from './sunspec-decode';
-import { applyScaleFactor, decodeRegisters, isNotImplemented } from './sunspec-decode';
+import { applyScaleFactor, decodeRegisters, encodeFloat32le, isNotImplemented } from './sunspec-decode';
 
 // ---------------------------------------------------------------------------
 // Local big-endian encoders: produce 16-bit register words from JS values.
@@ -322,6 +322,43 @@ describe('sunspec-decode', () => {
                 }),
                 RUNS,
             );
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // TASK 2.3 — Property 4: float32le encoding round-trips against the decoder
+    // Validates: Requirements 5.1, 5.2, 5.3, 5.4
+    // -----------------------------------------------------------------------
+    describe('Feature: storedge-battery-control, Property 4: float32le encoding round-trips against the existing decoder', () => {
+        it('Feature: storedge-battery-control, Property 4: float32le encoding round-trips against the existing decoder', () => {
+            // For any finite float32 value v, encoding it with encodeFloat32le and
+            // decoding via the existing 'float32le' decoder reproduces v bit-exact
+            // after float32 rounding. fc.float() yields 32-bit-representable values;
+            // Math.fround makes the expected rounding explicit for all inputs.
+            fc.assert(
+                fc.property(fc.float({ noNaN: true, noDefaultInfinity: true }), v => {
+                    const decoded = decodeRegisters(encodeFloat32le(v), 'float32le');
+                    expect(decoded).to.equal(Math.fround(v));
+                }),
+                RUNS,
+            );
+
+            // The encoder returns [low, high] word order consistent with the decoder,
+            // which reads words[1] as the high word and words[0] as the low word.
+            fc.assert(
+                fc.property(fc.float({ noNaN: true, noDefaultInfinity: true }), v => {
+                    const [low, high] = encodeFloat32le(v);
+                    // Reassembling with the high word first must equal the big-endian
+                    // float32 decode, confirming words[0]=low, words[1]=high.
+                    expect(decodeRegisters([high, low], 'float32')).to.equal(Math.fround(v));
+                }),
+                RUNS,
+            );
+
+            // Fixed-vector example: 5000 W encodes to [0x4000, 0x459c] (Req 5.2).
+            expect(encodeFloat32le(5000)).to.deep.equal([0x4000, 0x459c]);
+            // And that vector decodes back to 5000 through the existing decoder.
+            expect(decodeRegisters(encodeFloat32le(5000), 'float32le')).to.equal(5000);
         });
     });
 });

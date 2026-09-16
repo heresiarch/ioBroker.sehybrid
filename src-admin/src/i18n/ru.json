@@ -21,5 +21,22 @@
     "Invalid host": "Invalid host",
     "Invalid port": "Invalid port",
     "Invalid unit ID": "Invalid unit ID",
-    "Invalid polling interval": "Invalid polling interval"
+    "Invalid polling interval": "Invalid polling interval",
+    "Battery control": "Управление батареей",
+    "Enable battery control": "Включить управление батареей",
+    "StorEdge portal warning": "Перед включением управления НЕОБХОДИМО отключить профиль накопителя StorEdge в портале мониторинга SolarEdge / SetApp, иначе дистанционное управление примерно через 10 секунд вернётся к режиму максимального самопотребления.",
+    "Default Storage Control Mode": "Режим управления накопителем по умолчанию",
+    "House consumption state": "Состояние потребления дома",
+    "Wallbox consumption state": "Состояние потребления зарядной станции",
+    "Max discharge limit (W)": "Макс. мощность разряда (Вт)",
+    "Source max age (s)": "Макс. возраст источника (с)",
+    "Mode 0 Disabled": "Отключено",
+    "Mode 1 Maximize Self Consumption": "Максимальное самопотребление",
+    "Mode 2 Time of Use": "По времени / программирование профиля",
+    "Mode 3 Backup Only": "Только резерв",
+    "Mode 4 Remote Control": "Дистанционное управление",
+    "Invalid default control mode": "Режим управления по умолчанию должен быть целым числом от 0 до 4",
+    "Invalid max discharge limit": "Макс. мощность разряда должна быть положительным числом",
+    "Invalid source max age": "Макс. возраст источника должен быть положительным целым числом",
+    "Source id required": "При включённом управлении требуется идентификатор состояния"
 }

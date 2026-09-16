@@ -21,5 +21,22 @@
     "Invalid host": "Invalid host",
     "Invalid port": "Invalid port",
     "Invalid unit ID": "Invalid unit ID",
-    "Invalid polling interval": "Invalid polling interval"
+    "Invalid polling interval": "Invalid polling interval",
+    "Battery control": "Controlo da bateria",
+    "Enable battery control": "Ativar controlo da bateria",
+    "StorEdge portal warning": "Antes de ativar o controlo, DEVE desativar o perfil de armazenamento StorEdge no portal de monitorização SolarEdge / SetApp, caso contrário o Controlo Remoto volta a Maximizar Autoconsumo após cerca de 10 segundos.",
+    "Default Storage Control Mode": "Modo de controlo de armazenamento predefinido",
+    "House consumption state": "Estado de consumo da casa",
+    "Wallbox consumption state": "Estado de consumo do wallbox",
+    "Max discharge limit (W)": "Limite máx. de descarga (W)",
+    "Source max age (s)": "Idade máx. da fonte (s)",
+    "Mode 0 Disabled": "Desativado",
+    "Mode 1 Maximize Self Consumption": "Maximizar autoconsumo",
+    "Mode 2 Time of Use": "Tarifa horária / programação de perfil",
+    "Mode 3 Backup Only": "Apenas backup",
+    "Mode 4 Remote Control": "Controlo remoto",
+    "Invalid default control mode": "O modo de controlo predefinido deve ser um inteiro entre 0 e 4",
+    "Invalid max discharge limit": "O limite máx. de descarga deve ser um número positivo",
+    "Invalid source max age": "A idade máx. da fonte deve ser um inteiro positivo",
+    "Source id required": "É necessário um ID de estado quando o controlo está ativado"
 }

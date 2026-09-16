@@ -4,6 +4,10 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Alert from '@mui/material/Alert';
 import Table from '@mui/material/Table';
 import TableHead from '@mui/material/TableHead';
 import TableBody from '@mui/material/TableBody';
@@ -126,6 +130,15 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
             port: this.toNumber(native.port),
             unitId: this.toNumber(native.unitId),
             pollInterval: this.toNumber(native.pollInterval),
+            // Control settings (validated only when present; source ids required when
+            // controlEnabled is true). Numeric fields are coerced so validateConfig's
+            // integer/positive bounds apply and drive per-field error/helperText.
+            controlEnabled: !!native.controlEnabled,
+            defaultStorageControlMode: this.toNumber(native.defaultStorageControlMode),
+            houseConsumptionStateId: native.houseConsumptionStateId,
+            wallboxConsumptionStateId: native.wallboxConsumptionStateId,
+            maxDischargeLimit: this.toNumber(native.maxDischargeLimit),
+            sourceMaxAgeSeconds: this.toNumber(native.sourceMaxAgeSeconds),
         };
     }
 
@@ -345,6 +358,131 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
         );
     }
 
+    /**
+     * Plain text input for a foreign state id, bound to a native field.
+     *
+     * @param title
+     * @param attr
+     * @param hasError
+     */
+    private renderStateIdField(title: string, attr: string, hasError: boolean): React.JSX.Element {
+        return (
+            <TextField
+                variant="standard"
+                label={I18n.t(title)}
+                style={{ ...styles.input, ...styles.controlElement }}
+                value={this.props.native[attr] ?? ''}
+                type="text"
+                error={hasError}
+                helperText={hasError ? I18n.t('Source id required') : ''}
+                onChange={e => this.props.onChange(attr, e.target.value)}
+                margin="normal"
+            />
+        );
+    }
+
+    /**
+     * Render the control settings section shown below the connection fields:
+     * the enable checkbox with the StorEdge portal warning, the default storage
+     * control mode select, the two consumption source id inputs, and the numeric
+     * discharge-limit / source-max-age fields. Per-field error/helperText is driven
+     * by the shared validateConfig via `errors`.
+     *
+     * @param errors Per-field validation errors from {@link errors}.
+     */
+    private renderControlSettings(errors: ReturnType<typeof validateConfig>['errors']): React.JSX.Element {
+        const { native } = this.props;
+        const modeValue = native.defaultStorageControlMode ?? '';
+        const modeOptions: { value: number; key: string }[] = [
+            { value: 0, key: 'Mode 0 Disabled' },
+            { value: 1, key: 'Mode 1 Maximize Self Consumption' },
+            { value: 2, key: 'Mode 2 Time of Use' },
+            { value: 3, key: 'Mode 3 Backup Only' },
+            { value: 4, key: 'Mode 4 Remote Control' },
+        ];
+
+        return (
+            <div style={styles.tableWrapper}>
+                <Typography
+                    variant="h6"
+                    style={{ padding: 8 }}
+                >
+                    {I18n.t('Battery control')}
+                </Typography>
+
+                <div>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={!!native.controlEnabled}
+                                onChange={e => this.props.onChange('controlEnabled', e.target.checked)}
+                            />
+                        }
+                        label={I18n.t('Enable battery control')}
+                    />
+                </div>
+
+                <Alert
+                    severity="warning"
+                    style={styles.controlElement}
+                >
+                    {I18n.t('StorEdge portal warning')}
+                </Alert>
+
+                <div>
+                    <TextField
+                        select
+                        variant="standard"
+                        label={I18n.t('Default Storage Control Mode')}
+                        style={{ ...styles.input, ...styles.controlElement }}
+                        value={modeValue}
+                        error={!!errors.defaultStorageControlMode}
+                        helperText={errors.defaultStorageControlMode ? I18n.t('Invalid default control mode') : ''}
+                        onChange={e => this.props.onChange('defaultStorageControlMode', Number(e.target.value))}
+                        margin="normal"
+                    >
+                        {modeOptions.map(o => (
+                            <MenuItem
+                                key={o.value}
+                                value={o.value}
+                            >
+                                {`${o.value} ${I18n.t(o.key)}`}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                </div>
+
+                <div>
+                    {this.renderStateIdField(
+                        'House consumption state',
+                        'houseConsumptionStateId',
+                        !!errors.houseConsumptionStateId,
+                    )}
+                    {this.renderStateIdField(
+                        'Wallbox consumption state',
+                        'wallboxConsumptionStateId',
+                        !!errors.wallboxConsumptionStateId,
+                    )}
+                </div>
+
+                <div>
+                    {this.renderNumberField(
+                        'Max discharge limit (W)',
+                        'Invalid max discharge limit',
+                        'maxDischargeLimit',
+                        !!errors.maxDischargeLimit,
+                    )}
+                    {this.renderNumberField(
+                        'Source max age (s)',
+                        'Invalid source max age',
+                        'sourceMaxAgeSeconds',
+                        !!errors.sourceMaxAgeSeconds,
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     render(): React.JSX.Element {
         const errors = this.errors();
         const anyInvalid = Object.keys(errors).length > 0;
@@ -377,6 +515,8 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                     </Button>
                     {this.renderTestStatus()}
                 </div>
+
+                {this.renderControlSettings(errors)}
 
                 {this.renderValueTable()}
             </form>
