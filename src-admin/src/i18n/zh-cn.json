@@ -38,5 +38,7 @@
     "Invalid default control mode": "默认控制模式必须是 0 到 4 之间的整数",
     "Invalid max discharge limit": "最大放电限值必须为正数",
     "Invalid source max age": "数据源最大有效期必须为正整数",
-    "Source id required": "启用控制时需要一个外部状态 ID"
+    "Source id required": "启用控制时需要一个外部状态 ID",
+    "Select consumption state": "选择消耗状态",
+    "Browse": "浏览"
 }

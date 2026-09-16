@@ -38,5 +38,7 @@
     "Invalid default control mode": "Le mode de contrôle par défaut doit être un entier entre 0 et 4",
     "Invalid max discharge limit": "La limite max. de décharge doit être un nombre positif",
     "Invalid source max age": "L'âge max. de la source doit être un entier positif",
-    "Source id required": "Un identifiant d'état est requis lorsque le contrôle est activé"
+    "Source id required": "Un identifiant d'état est requis lorsque le contrôle est activé",
+    "Select consumption state": "Sélectionner l'état de consommation",
+    "Browse": "Parcourir"
 }

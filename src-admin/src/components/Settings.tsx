@@ -18,8 +18,11 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SearchIcon from '@mui/icons-material/Search';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 
-import { I18n, type AdminConnection, type IobTheme } from '@iobroker/adapter-react-v5';
+import { DialogSelectID, I18n, type AdminConnection, type IobTheme } from '@iobroker/adapter-react-v5';
 
 // Shared, pure config validation reused by the adapter and this admin form.
 // We import the SAME validateConfig / sunspec helpers from the adapter's src/lib
@@ -74,6 +77,14 @@ const styles: Record<string, React.CSSProperties> = {
         padding: 0,
         display: 'block',
     },
+    stateIdFieldWrapper: {
+        display: 'inline-flex',
+        alignItems: 'flex-end',
+        marginRight: 20,
+    },
+    stateIdBrowseButton: {
+        marginBottom: 4,
+    },
 };
 
 type TestConnectionResponse =
@@ -99,14 +110,25 @@ type TestStatus =
     | { kind: 'success'; manufacturer?: string; model?: string }
     | { kind: 'failure'; message: string };
 
+/** Which consumption source the object-id picker dialog is currently open for. */
+type SelectIdSource = 'house' | 'wallbox';
+
 interface SettingsState {
     testStatus: TestStatus;
+    /** The source whose object-id picker is open, or null when the dialog is closed. */
+    selectIdFor: SelectIdSource | null;
 }
+
+/** Maps a picker source to the native attribute it edits and its dialog title. */
+const SELECT_ID_SOURCES: Record<SelectIdSource, { attr: string; title: string }> = {
+    house: { attr: 'houseConsumptionStateId', title: 'Select consumption state' },
+    wallbox: { attr: 'wallboxConsumptionStateId', title: 'Select consumption state' },
+};
 
 class Settings extends React.Component<SettingsProps, SettingsState> {
     constructor(props: SettingsProps) {
         super(props);
-        this.state = { testStatus: { kind: 'idle' } };
+        this.state = { testStatus: { kind: 'idle' }, selectIdFor: null };
     }
 
     /**
@@ -359,24 +381,81 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
     }
 
     /**
-     * Plain text input for a foreign state id, bound to a native field.
+     * Text input for a foreign state id, bound to a native field, plus a browse
+     * button that opens the object-browser picker for the given source. Manual
+     * entry still works; the button only fills the field.
      *
-     * @param title
-     * @param attr
-     * @param hasError
+     * @param title Field label (translation key).
+     * @param attr Native attribute the field is bound to.
+     * @param hasError Whether the field currently has a validation error.
+     * @param source Which picker source this field represents (drives the dialog).
      */
-    private renderStateIdField(title: string, attr: string, hasError: boolean): React.JSX.Element {
+    private renderStateIdField(
+        title: string,
+        attr: string,
+        hasError: boolean,
+        source: SelectIdSource,
+    ): React.JSX.Element {
+        const socketAvailable = !!this.props.socket;
         return (
-            <TextField
-                variant="standard"
-                label={I18n.t(title)}
-                style={{ ...styles.input, ...styles.controlElement }}
-                value={this.props.native[attr] ?? ''}
-                type="text"
-                error={hasError}
-                helperText={hasError ? I18n.t('Source id required') : ''}
-                onChange={e => this.props.onChange(attr, e.target.value)}
-                margin="normal"
+            <div style={styles.stateIdFieldWrapper}>
+                <TextField
+                    variant="standard"
+                    label={I18n.t(title)}
+                    style={{ ...styles.input, ...styles.controlElement, marginRight: 0 }}
+                    value={this.props.native[attr] ?? ''}
+                    type="text"
+                    error={hasError}
+                    helperText={hasError ? I18n.t('Source id required') : ''}
+                    onChange={e => this.props.onChange(attr, e.target.value)}
+                    margin="normal"
+                />
+                <Tooltip title={I18n.t('Browse')}>
+                    <span>
+                        <IconButton
+                            size="small"
+                            style={styles.stateIdBrowseButton}
+                            aria-label={I18n.t('Browse')}
+                            disabled={!socketAvailable}
+                            onClick={() => this.setState({ selectIdFor: source })}
+                        >
+                            <SearchIcon />
+                        </IconButton>
+                    </span>
+                </Tooltip>
+            </div>
+        );
+    }
+
+    /**
+     * Render the object-browser picker dialog when open. Only rendered when a
+     * source is selected and both socket and theme are available, so the dialog
+     * never mounts without its required props.
+     */
+    private renderSelectIdDialog(): React.JSX.Element | null {
+        const { selectIdFor } = this.state;
+        const { socket, theme } = this.props;
+        if (!selectIdFor || !socket || !theme) {
+            return null;
+        }
+
+        const { attr, title } = SELECT_ID_SOURCES[selectIdFor];
+        const selected = this.props.native[attr] ?? '';
+
+        return (
+            <DialogSelectID
+                socket={socket}
+                theme={theme}
+                types={['state']}
+                selected={selected}
+                lang={I18n.getLanguage()}
+                title={I18n.t(title)}
+                onOk={selectedId => {
+                    const chosen = Array.isArray(selectedId) ? selectedId[0] : (selectedId ?? '');
+                    this.props.onChange(attr, chosen);
+                    this.setState({ selectIdFor: null });
+                }}
+                onClose={() => this.setState({ selectIdFor: null })}
             />
         );
     }
@@ -457,11 +536,13 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                         'House consumption state',
                         'houseConsumptionStateId',
                         !!errors.houseConsumptionStateId,
+                        'house',
                     )}
                     {this.renderStateIdField(
                         'Wallbox consumption state',
                         'wallboxConsumptionStateId',
                         !!errors.wallboxConsumptionStateId,
+                        'wallbox',
                     )}
                 </div>
 
@@ -479,6 +560,8 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                         !!errors.sourceMaxAgeSeconds,
                     )}
                 </div>
+
+                {this.renderSelectIdDialog()}
             </div>
         );
     }

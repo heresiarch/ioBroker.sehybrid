@@ -38,5 +38,7 @@
     "Invalid default control mode": "Standaard regelmodus moet een geheel getal tussen 0 en 4 zijn",
     "Invalid max discharge limit": "Max. ontlaadlimiet moet een positief getal zijn",
     "Invalid source max age": "Max. leeftijd bron moet een positief geheel getal zijn",
-    "Source id required": "Een datapunt-ID is vereist wanneer de regeling is ingeschakeld"
+    "Source id required": "Een datapunt-ID is vereist wanneer de regeling is ingeschakeld",
+    "Select consumption state": "Verbruiksdatapunt selecteren",
+    "Browse": "Bladeren"
 }

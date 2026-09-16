@@ -38,5 +38,7 @@
     "Invalid default control mode": "Standard-Steuermodus muss eine ganze Zahl zwischen 0 und 4 sein",
     "Invalid max discharge limit": "Max. Entladeleistung muss eine positive Zahl sein",
     "Invalid source max age": "Max. Alter der Quelle muss eine positive ganze Zahl sein",
-    "Source id required": "Bei aktivierter Steuerung ist eine Datenpunkt-ID erforderlich"
+    "Source id required": "Bei aktivierter Steuerung ist eine Datenpunkt-ID erforderlich",
+    "Select consumption state": "Verbrauchs-Datenpunkt auswählen",
+    "Browse": "Durchsuchen"
 }

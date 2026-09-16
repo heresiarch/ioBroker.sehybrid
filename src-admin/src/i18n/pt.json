@@ -38,5 +38,7 @@
     "Invalid default control mode": "O modo de controlo predefinido deve ser um inteiro entre 0 e 4",
     "Invalid max discharge limit": "O limite máx. de descarga deve ser um número positivo",
     "Invalid source max age": "A idade máx. da fonte deve ser um inteiro positivo",
-    "Source id required": "É necessário um ID de estado quando o controlo está ativado"
+    "Source id required": "É necessário um ID de estado quando o controlo está ativado",
+    "Select consumption state": "Selecionar estado de consumo",
+    "Browse": "Procurar"
 }

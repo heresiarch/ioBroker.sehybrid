@@ -38,5 +38,7 @@
     "Invalid default control mode": "Domyślny tryb sterowania musi być liczbą całkowitą od 0 do 4",
     "Invalid max discharge limit": "Maks. limit rozładowania musi być liczbą dodatnią",
     "Invalid source max age": "Maks. wiek źródła musi być dodatnią liczbą całkowitą",
-    "Source id required": "Gdy sterowanie jest włączone, wymagany jest identyfikator stanu"
+    "Source id required": "Gdy sterowanie jest włączone, wymagany jest identyfikator stanu",
+    "Select consumption state": "Wybierz stan zużycia",
+    "Browse": "Przeglądaj"
 }

@@ -38,5 +38,7 @@
     "Invalid default control mode": "Default control mode must be an integer between 0 and 4",
     "Invalid max discharge limit": "Max discharge limit must be a positive number",
     "Invalid source max age": "Source max age must be a positive integer",
-    "Source id required": "A foreign state id is required when control is enabled"
+    "Source id required": "A foreign state id is required when control is enabled",
+    "Select consumption state": "Select consumption state",
+    "Browse": "Browse"
 }
