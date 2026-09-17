@@ -136,7 +136,9 @@
     "houseConsumptionStateId": "",
     "wallboxConsumptionStateId": "",
     "maxDischargeLimit": 5000,
-    "sourceMaxAgeSeconds": 120
+    "sourceMaxAgeSeconds": 120,
+    "defaultFallbackMode": 1,
+    "commandTimeout": 120
   },
   "objects": [],
   "instanceObjects": [

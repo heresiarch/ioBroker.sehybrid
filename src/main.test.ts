@@ -10,12 +10,15 @@ import {
 } from './lib/control-registers';
 import { ModbusControlWriter } from './lib/control-writer';
 import type { IModbusClient, ModbusReadOptions, ModbusWriteOptions } from './lib/modbus-client';
-import { encodeFloat32le } from './lib/sunspec-decode';
+import { encodeFloat32le, encodeUint32le } from './lib/sunspec-decode';
 
 // ===========================================================================
-// Task 7.4 (OPTIONAL) — Property tests for the control behaviors main.ts wires:
-// read-only-when-disabled, acked-change handling, user-change dispatch/retain,
-// and revert scope (disable-only, never on unload).
+// Property tests for the control behaviors main.ts wires against SolarEdge's
+// documented Remote Control procedure: read-only-when-disabled, the per-cycle
+// heartbeat (renew 0xE00B + re-assert 0xE00D=4, write-only-if-changed 0xE010,
+// never rewrite the initial-config registers), acked-change handling, user-change
+// dispatch/retain (writable expert set {0xE004, 0xE00D, 0xE010}), and revert scope
+// (disable-only, never on unload).
 //
 // SCOPE / APPROACH
 // ----------------
@@ -35,25 +38,32 @@ import { encodeFloat32le } from './lib/sunspec-decode';
 //     function codes can be issued. Property 1 is verified by exercising the writer
 //     seam with the "disabled ⇒ no writer ⇒ no writes" model and by asserting the
 //     structural invariant that the writer is the ONLY write path.
-//   • user change on a writable control id → main.ts calls controlWriter.write(def,
-//     Number(state.val)) then setControlAck on success; failure logs + retains and
-//     does not throw (Property 10).
+//   • per active poll cycle → main.ts calls controlWriter.heartbeat(limit,
+//     lastWritten, commandTimeout), renewing 0xE00B + re-asserting 0xE00D=4 each
+//     cycle, refreshing 0xE010 write-only-if-changed, never touching
+//     0xE000/0xE004/0xE00A (Property 10).
+//   • user change on a writable-expert id ({0xE004, 0xE00D, 0xE010}) → main.ts calls
+//     controlWriter.write(def, Number(state.val)) then setControlAck on success;
+//     failure logs + retains and does not throw (Property 12).
 //   • acked change (state.ack===true) or a deletion (!state) → main.ts returns in
 //     onStateChange BEFORE handleStateChange, so no writer call happens (Property 11).
 //   • disable transition → main.ts calls controlWriter.applyRevert(defaultMode)
 //     (exactly one FC06 0xE004=defaultMode) then stops the heartbeat; onUnload calls
-//     NOTHING on the writer (Property 12).
+//     NOTHING on the writer (Property 14).
 //
 // Where a controller-free harness is impractical, the equivalent guarantee is
-// covered at the ModbusControlWriter seam here and documented per property.
-// The core write-behavior of Properties 7/8/9 (dispatch, write-only-if-changed,
-// heartbeat re-assert, never-write 0xE00A/0xE00B) is covered by
-// control-writer.test.ts; consumption.test.ts covers Properties 5/6 (compute/
-// clamp/validity); state-manager.test.ts covers the control-state metadata.
+// covered at the ModbusControlWriter seam here and documented per property. The
+// core dispatch/enable/heartbeat write-behavior (Properties 2/8/9/10/11) is also
+// covered by control-writer.test.ts; consumption.test.ts covers the compute/clamp/
+// validity properties; state-manager.test.ts covers the control-state metadata.
 // ===========================================================================
 
 /** StorEdge control-register addresses referenced by the properties. */
-const ADDR_STORAGE_CONTROL_MODE = 0xe004; // 0xE004 — re-asserted / revert target
+const ADDR_EXPORT_CONFIG = 0xe000; // 0xE000 — initial-config only, never in heartbeat
+const ADDR_STORAGE_CONTROL_MODE = 0xe004; // 0xE004 — initial-config / revert target
+const ADDR_STORAGE_DEFAULT_MODE = 0xe00a; // 0xE00A — initial-config only, never in heartbeat
+const ADDR_REMOTE_COMMAND_TIMEOUT = 0xe00b; // 0xE00B — renewed each heartbeat cycle (uint32le, FC16)
+const ADDR_REMOTE_COMMAND_MODE = 0xe00d; // 0xE00D — re-asserted (=4) each heartbeat cycle
 const ADDR_REMOTE_DISCHARGE_LIMIT = 0xe010; // 0xE010 — consumption-driven target
 
 const RUNS = { numRuns: 100 };
@@ -137,7 +147,14 @@ function writesTo(client: RecordingClient, address: number): RecordedWrite[] {
 interface ControlHarnessOptions {
     controlEnabled: boolean;
     defaultStorageControlMode: number;
+    /** Written once to 0xE00A on enable (the inverter's comms-break fallback mode). */
+    defaultFallbackMode: number;
+    /** Written to 0xE00B on enable and renewed each heartbeat cycle, in seconds. */
+    commandTimeout: number;
 }
+
+/** The writable expert control ids main.ts allows a user change to dispatch (WRITABLE_EXPERT). */
+const WRITABLE_EXPERT = new Set<number>([0xe004, 0xe00d, 0xe010]);
 
 /**
  * Mirrors the observable behavior of main.ts's control wiring around the real
@@ -179,10 +196,30 @@ class ControlHarness {
             return; // disabled ⇒ no subscriptions, no enable sequence, no writes
         }
         this.subscriptions.push('control.*', 'house', 'wallbox');
-        await this.writer.applyEnable(initialLimit);
+        await this.writer.applyEnable(initialLimit, {
+            defaultFallbackMode: this.opts.defaultFallbackMode,
+            commandTimeout: this.opts.commandTimeout,
+        });
         this.lastWritten0xE010 = initialLimit;
         this.active = true;
         this.acks.push({ leaf: 'computedDischargeLimit', value: initialLimit });
+    }
+
+    /**
+     * Mirror of the pollOnce heartbeat tail: only runs while control is active, and
+     * delegates to the real writer's heartbeat(limit, lastWritten, commandTimeout) —
+     * renewing 0xE00B and re-asserting 0xE00D=4 unconditionally, refreshing 0xE010
+     * write-only-if-changed, and never touching 0xE000/0xE004/0xE00A. The returned
+     * lastWritten is stored, exactly as main.ts does.
+     *
+     * @param limit The current computed discharge limit for this cycle.
+     */
+    async heartbeat(limit: number): Promise<void> {
+        if (!this.active || !this.writer) {
+            return; // heartbeat tail is gated behind `this.controlActive && this.controlWriter`
+        }
+        this.lastWritten0xE010 = await this.writer.heartbeat(limit, this.lastWritten0xE010, this.opts.commandTimeout);
+        this.acks.push({ leaf: 'computedDischargeLimit', value: limit });
     }
 
     /**
@@ -208,8 +245,12 @@ class ControlHarness {
             return;
         }
         const def = findControlDef(leaf);
-        if (!def || !def.fc) {
-            return; // unknown or read-only id → ignored
+        // Restrict dispatch to the writable expert set {0xE004, 0xE00D, 0xE010}
+        // (main.ts WRITABLE_EXPERT). Unknown / read-only ids and the initial-config-
+        // only / adapter-renewed registers (0xE000/0xE00A/0xE00B) never dispatch a
+        // user-driven write.
+        if (!def || !def.fc || !WRITABLE_EXPERT.has(def.address)) {
+            return;
         }
         const value = Number(val);
         try {
@@ -243,7 +284,7 @@ class ControlHarness {
     onUnload(): void {}
 }
 
-describe('main.ts control wiring (task 7.4)', () => {
+describe('main.ts control wiring', () => {
     // -----------------------------------------------------------------------
     // Feature: storedge-battery-control, Property 1: Read-only when control is
     // disabled.
@@ -277,7 +318,12 @@ describe('main.ts control wiring (task 7.4)', () => {
                     fc.double({ min: 0, max: 5000, noNaN: true, noDefaultInfinity: true }),
                     fc.array(changeArb, { minLength: 0, maxLength: 20 }),
                     async (initialLimit, changes) => {
-                        const h = new ControlHarness({ controlEnabled: false, defaultStorageControlMode: 1 });
+                        const h = new ControlHarness({
+                            controlEnabled: false,
+                            defaultStorageControlMode: 1,
+                            defaultFallbackMode: 1,
+                            commandTimeout: 120,
+                        });
                         await h.enable(initialLimit);
                         for (const c of changes) {
                             await h.onControlChange(c.leaf, c.val, c.ack, c.deletion);
@@ -306,20 +352,126 @@ describe('main.ts control wiring (task 7.4)', () => {
     });
 
     // -----------------------------------------------------------------------
-    // Feature: storedge-battery-control, Property 10: User changes dispatch the
-    // correct write and acknowledge on success.
-    // Validates: Requirements 13.4, 13.5, 14.1, 14.2, 14.3
+    // Feature: storedge-battery-control, Property 10: Heartbeat renews the timeout
+    // and command mode but never the initial-config registers.
+    // Validates: Requirements 10.2, 11.1, 11.2, 11.3, 11.4
     //
-    // Any non-acked change on a writable control id routes exactly one write to
-    // the correct register + FC with the same value (honoring write-only-if-changed
-    // for 0xE010), acks once on success; on failure it acks nothing, retains the
-    // prior lastWritten, and continues running (does not throw).
+    // main.ts's pollOnce heartbeat tail delegates to writer.heartbeat(limit,
+    // lastWritten, commandTimeout) once per active cycle. Over N cycles the writer
+    // renews 0xE00B=commandTimeout (uint32le, FC16) UNCONDITIONALLY (exactly N
+    // writes) and re-asserts 0xE00D=4 (FC06) UNCONDITIONALLY (exactly N writes),
+    // refreshes 0xE010 (float32le, FC16) write-only-if-changed, and NEVER rewrites
+    // the initial-config registers 0xE000/0xE004/0xE00A during the heartbeat. Once
+    // control is disabled, the heartbeat tail is gated off and issues nothing.
     // -----------------------------------------------------------------------
-    describe('Feature: storedge-battery-control, Property 10: User changes dispatch the correct write and acknowledge on success', () => {
-        // Writable expert control ids the user can edit (carry an fc, not read-only).
-        const writableLeaves = CONTROL_REGISTERS.filter(d => !d.readOnly && d.fc).map(d => d.name);
+    describe('Feature: storedge-battery-control, Property 10: Heartbeat renews the timeout and command mode but never the initial-config registers', () => {
+        it('Feature: storedge-battery-control, Property 10: over N cycles, 0xE00B + 0xE00D re-asserted each cycle, 0xE010 write-only-if-changed, no 0xE000/0xE004/0xE00A rewrite; none after disable', async () => {
+            const limitArb = fc.double({ min: 0, max: 6000, noNaN: true, noDefaultInfinity: true });
+            const commandTimeoutArb = fc.integer({ min: 1, max: 86400 });
 
-        it('Feature: storedge-battery-control, Property 10: non-acked writable change routes one correct write + one ack (success path)', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.double({ min: 0, max: 6000, noNaN: true, noDefaultInfinity: true }),
+                    fc.array(limitArb, { minLength: 1, maxLength: 20 }),
+                    commandTimeoutArb,
+                    async (initialLimit, cycleLimits, commandTimeout) => {
+                        const h = new ControlHarness({
+                            controlEnabled: true,
+                            defaultStorageControlMode: 1,
+                            defaultFallbackMode: 1,
+                            commandTimeout,
+                        });
+                        await h.enable(initialLimit);
+
+                        // Snapshot the write log right after the initial-config sequence:
+                        // everything from here on is heartbeat-only.
+                        const writesAfterEnable = h.client.writes.length;
+
+                        // Track the write-only-if-changed model for 0xE010 across cycles.
+                        let expectedLastWritten = initialLimit;
+                        let expected0xE010Writes = 0;
+                        for (const limit of cycleLimits) {
+                            if (limit !== expectedLastWritten) {
+                                expected0xE010Writes++;
+                                expectedLastWritten = limit;
+                            }
+                            await h.heartbeat(limit);
+                        }
+
+                        const N = cycleLimits.length;
+                        const heartbeatWrites = h.client.writes.slice(writesAfterEnable);
+
+                        // 0xE00B renewed exactly N times, each an FC16 uint32le(commandTimeout).
+                        const timeoutWrites = heartbeatWrites.filter(w => w.address === ADDR_REMOTE_COMMAND_TIMEOUT);
+                        expect(timeoutWrites.length, '0xE00B renewed once per cycle').to.equal(N);
+                        for (const w of timeoutWrites) {
+                            expect(w.fc, '0xE00B is FC16').to.equal('FC16');
+                            expect(w.payload, '0xE00B payload is encodeUint32le(commandTimeout)').to.deep.equal(
+                                encodeUint32le(commandTimeout),
+                            );
+                        }
+
+                        // 0xE00D=4 re-asserted exactly N times (FC06).
+                        const modeWrites = heartbeatWrites.filter(w => w.address === ADDR_REMOTE_COMMAND_MODE);
+                        expect(modeWrites.length, '0xE00D re-asserted once per cycle').to.equal(N);
+                        for (const w of modeWrites) {
+                            expect(w.fc, '0xE00D is FC06').to.equal('FC06');
+                            expect(w.payload, '0xE00D is re-asserted to 4').to.equal(4);
+                        }
+
+                        // 0xE010 written only on changed cycles.
+                        const dischargeWrites = heartbeatWrites.filter(w => w.address === ADDR_REMOTE_DISCHARGE_LIMIT);
+                        expect(dischargeWrites.length, '0xE010 write-only-if-changed count').to.equal(
+                            expected0xE010Writes,
+                        );
+
+                        // The initial-config-only registers are NEVER rewritten during the heartbeat.
+                        expect(
+                            heartbeatWrites.filter(w => w.address === ADDR_EXPORT_CONFIG).length,
+                            'no 0xE000 rewrite in heartbeat',
+                        ).to.equal(0);
+                        expect(
+                            heartbeatWrites.filter(w => w.address === ADDR_STORAGE_CONTROL_MODE).length,
+                            'no 0xE004 rewrite in heartbeat',
+                        ).to.equal(0);
+                        expect(
+                            heartbeatWrites.filter(w => w.address === ADDR_STORAGE_DEFAULT_MODE).length,
+                            'no 0xE00A rewrite in heartbeat',
+                        ).to.equal(0);
+
+                        // After disable the heartbeat tail is gated off: no further writes.
+                        await h.disable();
+                        const writesAfterDisable = h.client.writes.length;
+                        await h.heartbeat(cycleLimits[0]);
+                        expect(
+                            h.client.writes.length - writesAfterDisable,
+                            'no heartbeat writes after disable',
+                        ).to.equal(0);
+                    },
+                ),
+                RUNS,
+            );
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Feature: storedge-battery-control, Property 12: User changes dispatch the
+    // correct write and acknowledge on success.
+    // Validates: Requirements 12.2, 12.6, 13.4, 13.5, 14.1, 14.3
+    //
+    // A non-acked change on a writable expert control id in {0xE004, 0xE00D, 0xE010}
+    // routes exactly one write to the correct register + FC with the same value
+    // (honoring write-only-if-changed for 0xE010), acks once on success; on failure
+    // it acks nothing, retains the prior lastWritten, and continues running (does
+    // not throw).
+    // -----------------------------------------------------------------------
+    describe('Feature: storedge-battery-control, Property 12: User changes dispatch the correct write and acknowledge on success', () => {
+        // Writable expert control ids the user can edit: exactly the WRITABLE_EXPERT set.
+        const writableLeaves = CONTROL_REGISTERS.filter(d => !d.readOnly && d.fc && WRITABLE_EXPERT.has(d.address)).map(
+            d => d.name,
+        );
+
+        it('Feature: storedge-battery-control, Property 12: non-acked writable change routes one correct write + one ack (success path)', async () => {
             const leafArb = fc.constantFrom(...writableLeaves);
             // uint16 mode registers accept 0..7; the float32 limits accept watts.
             const valueArb = fc.double({ min: 0, max: 6000, noNaN: true, noDefaultInfinity: true });
@@ -331,7 +483,12 @@ describe('main.ts control wiring (task 7.4)', () => {
                     // user edit would; keep float32 limits as-is.
                     const val = def.kind === 'uint16' ? Math.floor(rawVal) % 8 : rawVal;
 
-                    const h = new ControlHarness({ controlEnabled: true, defaultStorageControlMode: 1 });
+                    const h = new ControlHarness({
+                        controlEnabled: true,
+                        defaultStorageControlMode: 1,
+                        defaultFallbackMode: 1,
+                        commandTimeout: 120,
+                    });
                     await h.enable(0); // seed lastWritten0xE010 = 0
                     const acksBefore = h.acks.length;
                     const writesBefore = h.client.writes.length;
@@ -367,12 +524,17 @@ describe('main.ts control wiring (task 7.4)', () => {
             );
         });
 
-        it('Feature: storedge-battery-control, Property 10: a write failure acks nothing, retains the prior value, and does not throw', async () => {
+        it('Feature: storedge-battery-control, Property 12: a write failure acks nothing, retains the prior value, and does not throw', async () => {
             const valueArb = fc.double({ min: 1, max: 6000, noNaN: true, noDefaultInfinity: true });
 
             await fc.assert(
                 fc.asyncProperty(valueArb, async newLimit => {
-                    const h = new ControlHarness({ controlEnabled: true, defaultStorageControlMode: 1 });
+                    const h = new ControlHarness({
+                        controlEnabled: true,
+                        defaultStorageControlMode: 1,
+                        defaultFallbackMode: 1,
+                        commandTimeout: 120,
+                    });
                     await h.enable(1234); // lastWritten0xE010 = 1234
                     const prior = h.lastWritten0xE010;
                     const acksBefore = h.acks.length;
@@ -425,7 +587,12 @@ describe('main.ts control wiring (task 7.4)', () => {
                     valueArb,
                     fc.boolean(), // deletion?
                     async (leaf, val, deletion) => {
-                        const h = new ControlHarness({ controlEnabled: true, defaultStorageControlMode: 1 });
+                        const h = new ControlHarness({
+                            controlEnabled: true,
+                            defaultStorageControlMode: 1,
+                            defaultFallbackMode: 1,
+                            commandTimeout: 120,
+                        });
                         await h.enable(0);
                         const writesBefore = h.client.writes.length;
                         const acksBefore = h.acks.length;
@@ -444,9 +611,9 @@ describe('main.ts control wiring (task 7.4)', () => {
     });
 
     // -----------------------------------------------------------------------
-    // Feature: storedge-battery-control, Property 12: Revert happens on disable
+    // Feature: storedge-battery-control, Property 14: Revert happens on disable
     // only, never on unload.
-    // Validates: Requirements 12.1, 12.2, 12.5
+    // Validates: Requirements 12.1, 12.2, 12.6
     //
     // The OFF transition writes exactly one FC06 0xE004=defaultStorageControlMode
     // (applyRevert), then stops the heartbeat and clears subscriptions; onUnload
@@ -456,8 +623,8 @@ describe('main.ts control wiring (task 7.4)', () => {
     // transition). We assert both the observable revert write and that onUnload
     // emits nothing on the recording client.
     // -----------------------------------------------------------------------
-    describe('Feature: storedge-battery-control, Property 12: Revert happens on disable only, never on unload', () => {
-        it('Feature: storedge-battery-control, Property 12: disable writes exactly one FC06 0xE004=default; heartbeat and subscriptions stop', async () => {
+    describe('Feature: storedge-battery-control, Property 14: Revert happens on disable only, never on unload', () => {
+        it('Feature: storedge-battery-control, Property 14: disable writes exactly one FC06 0xE004=default; heartbeat and subscriptions stop', async () => {
             const modeArb = fc.integer({ min: 0, max: 4 });
             const limitArb = fc.double({ min: 0, max: 5000, noNaN: true, noDefaultInfinity: true });
 
@@ -466,6 +633,8 @@ describe('main.ts control wiring (task 7.4)', () => {
                     const h = new ControlHarness({
                         controlEnabled: true,
                         defaultStorageControlMode: defaultMode,
+                        defaultFallbackMode: 1,
+                        commandTimeout: 120,
                     });
                     await h.enable(initialLimit);
                     expect(h.active, 'control active after enable').to.equal(true);
@@ -490,12 +659,17 @@ describe('main.ts control wiring (task 7.4)', () => {
             );
         });
 
-        it('Feature: storedge-battery-control, Property 12: onUnload issues no control write', async () => {
+        it('Feature: storedge-battery-control, Property 14: onUnload issues no control write', async () => {
             const limitArb = fc.double({ min: 0, max: 5000, noNaN: true, noDefaultInfinity: true });
 
             await fc.assert(
                 fc.asyncProperty(limitArb, async initialLimit => {
-                    const h = new ControlHarness({ controlEnabled: true, defaultStorageControlMode: 2 });
+                    const h = new ControlHarness({
+                        controlEnabled: true,
+                        defaultStorageControlMode: 2,
+                        defaultFallbackMode: 1,
+                        commandTimeout: 120,
+                    });
                     await h.enable(initialLimit);
                     const writesBefore = h.client.writes.length;
 
@@ -510,7 +684,7 @@ describe('main.ts control wiring (task 7.4)', () => {
             );
         });
 
-        it("Feature: storedge-battery-control, Property 12: applyRevert is the ControlWriter's only revert entry point (structural)", () => {
+        it("Feature: storedge-battery-control, Property 14: applyRevert is the ControlWriter's only revert entry point (structural)", () => {
             // The writer exposes exactly one revert method; onUnload never calls it.
             const surface = Object.getOwnPropertyNames(ModbusControlWriter.prototype).filter(n => n !== 'constructor');
             const revertMethods = surface.filter(n => /revert|unload|disable/i.test(n));
@@ -529,7 +703,12 @@ describe('main.ts control wiring (task 7.4)', () => {
         const wallbox: SourceSample = { val: 500, ts: 1_000_000 };
         const computed = computeDischargeLimit(house, wallbox, 1_000_000, 120, 5000); // 2500
 
-        const h = new ControlHarness({ controlEnabled: true, defaultStorageControlMode: 3 });
+        const h = new ControlHarness({
+            controlEnabled: true,
+            defaultStorageControlMode: 3,
+            defaultFallbackMode: 1,
+            commandTimeout: 120,
+        });
         await h.enable(computed);
         expect(h.lastWritten0xE010).to.equal(2500);
 

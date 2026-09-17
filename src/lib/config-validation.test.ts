@@ -258,6 +258,8 @@ describe('config-validation => validateConfig', () => {
     type ControlTestConfig = TestConfig & {
         controlEnabled?: unknown;
         defaultStorageControlMode?: unknown;
+        defaultFallbackMode?: unknown;
+        commandTimeout?: unknown;
         houseConsumptionStateId?: unknown;
         wallboxConsumptionStateId?: unknown;
         maxDischargeLimit?: unknown;
@@ -396,7 +398,102 @@ describe('config-validation => validateConfig', () => {
         });
 
         // ----------------------------------------------------------------
-        // Property 16: Source ids required when control is enabled (Req 17.4)
+        // Property 16: Default fallback mode bound (Req 17.2, 17.7)
+        // Accepted iff integer in [0, 7]; else errors.defaultFallbackMode.
+        // Isolates defaultFallbackMode: the base config supplies valid
+        // connection + other control fields, so only this field can fail.
+        // ----------------------------------------------------------------
+        const defaultFallbackModeArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid integers in [0, 7]
+            fc.integer({ min: 0, max: 7 }),
+            // invalid integers outside the range
+            fc.integer({ min: -50, max: -1 }),
+            fc.integer({ min: 8, max: 50 }),
+            // non-integers
+            fc.double({ min: -50, max: 50, noNaN: true }).filter(n => !Number.isInteger(n)),
+            // wrong types
+            fc.string(),
+            fc.boolean(),
+        );
+
+        it('Feature: storedge-battery-control, Property 16: Default fallback mode bound', () => {
+            fc.assert(
+                fc.property(defaultFallbackModeArb, mode => {
+                    const cfg = baseValidControlConfig({ defaultFallbackMode: mode });
+                    const expectedOk =
+                        Number.isInteger(mode) &&
+                        (mode as number) >= CONFIG_BOUNDS.defaultFallbackMode.min &&
+                        (mode as number) <= CONFIG_BOUNDS.defaultFallbackMode.max;
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    expect(result.valid).to.equal(expectedOk);
+                    if (expectedOk) {
+                        expect(result.errors).to.not.have.property('defaultFallbackMode');
+                    } else {
+                        expect(result.errors).to.have.property('defaultFallbackMode');
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 17: Command timeout is a positive integer greater than the
+        // poll interval (Req 10.3, 17.3, 17.7)
+        // For arbitrary commandTimeout AND pollInterval (both varied), accepted
+        // iff commandTimeout is a positive integer AND strictly greater than
+        // pollInterval; else errors.commandTimeout. The base config's
+        // pollInterval is varied within its valid range [5, 3600] so it never
+        // itself fails and only commandTimeout drives the outcome.
+        // ----------------------------------------------------------------
+        const commandTimeoutArb: fc.Arbitrary<unknown> = fc.oneof(
+            // valid: positive integers (may or may not exceed pollInterval)
+            fc.integer({ min: 1, max: 10_000 }),
+            // invalid: zero and negative integers
+            fc.constant(0),
+            fc.integer({ min: -10_000, max: -1 }),
+            // non-integers
+            fc.double({ min: -100, max: 10_000, noNaN: true }).filter(n => !Number.isInteger(n)),
+            // wrong types
+            fc.string(),
+            fc.boolean(),
+        );
+
+        // pollInterval is always a valid integer in [5, 3600] so only
+        // commandTimeout can drive the failure.
+        const validPollIntervalArb: fc.Arbitrary<number> = fc.integer({
+            min: CONFIG_BOUNDS.pollInterval.min,
+            max: CONFIG_BOUNDS.pollInterval.max,
+        });
+
+        it('Feature: storedge-battery-control, Property 17: Command timeout is a positive integer greater than the poll interval', () => {
+            fc.assert(
+                fc.property(commandTimeoutArb, validPollIntervalArb, (commandTimeout, pollInterval) => {
+                    const cfg = baseValidControlConfig({ commandTimeout, pollInterval });
+                    const expectedOk =
+                        Number.isInteger(commandTimeout) &&
+                        (commandTimeout as number) > 0 &&
+                        (commandTimeout as number) > pollInterval;
+
+                    const result = validateConfig(cfg as Partial<ioBroker.AdapterConfig>);
+
+                    // pollInterval is always valid, so it must never be flagged.
+                    expect(result.errors).to.not.have.property('pollInterval');
+
+                    expect(result.valid).to.equal(expectedOk);
+                    if (expectedOk) {
+                        expect(result.errors).to.not.have.property('commandTimeout');
+                    } else {
+                        expect(result.errors).to.have.property('commandTimeout');
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 20: Source ids required when control is enabled (Req 17.4)
         // With controlEnabled === true, both houseConsumptionStateId and
         // wallboxConsumptionStateId must be non-empty strings; when either is
         // missing/empty the respective field error is set. When controlEnabled
@@ -421,7 +518,7 @@ describe('config-validation => validateConfig', () => {
             return typeof id === 'string' && id.length > 0;
         }
 
-        it('Feature: storedge-battery-control, Property 16: Source ids required when control is enabled', () => {
+        it('Feature: storedge-battery-control, Property 20: Source ids required when control is enabled', () => {
             fc.assert(
                 fc.property(fc.boolean(), sourceIdArb, sourceIdArb, (controlEnabled, houseId, wallboxId) => {
                     const overrides: Partial<ControlTestConfig> = { controlEnabled };

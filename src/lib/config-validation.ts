@@ -18,6 +18,8 @@ export const CONFIG_BOUNDS = {
     pollInterval: { min: 5, max: 3600 },
     /** Default storage control mode, integer 0..4 (Req 17.1). */
     defaultStorageControlMode: { min: 0, max: 4 },
+    /** Default fallback mode, integer 0..7 (Req 17.2). */
+    defaultFallbackMode: { min: 0, max: 7 },
 } as const;
 
 /** Fields that {@link validateConfig} can report an error for. */
@@ -27,11 +29,14 @@ export type ConfigField =
     | 'unitId'
     | 'pollInterval'
     | 'defaultStorageControlMode'
+    | 'defaultFallbackMode'
+    | 'commandTimeout'
     | 'houseConsumptionStateId'
     | 'wallboxConsumptionStateId'
     | 'maxDischargeLimit'
     | 'sourceMaxAgeSeconds';
 
+/** Result of {@link validateConfig}: overall validity plus per-field error messages. */
 export interface ConfigValidationResult {
     /** True if and only if `errors` is empty. */
     valid: boolean;
@@ -50,9 +55,10 @@ export interface ConfigValidationResult {
  *
  * Any input violating a bound is rejected with an error naming the offending field.
  *
- * The control fields (`defaultStorageControlMode`, `maxDischargeLimit`,
- * `sourceMaxAgeSeconds`, `houseConsumptionStateId`, `wallboxConsumptionStateId`)
- * are validated only when present (Req 17.1-17.4), so callers that supply just the
+ * The control fields (`defaultStorageControlMode`, `defaultFallbackMode`,
+ * `commandTimeout`, `maxDischargeLimit`, `sourceMaxAgeSeconds`,
+ * `houseConsumptionStateId`, `wallboxConsumptionStateId`) are validated only when
+ * present (Req 17.1-17.4, 17.7), so callers that supply just the
  * connection fields (e.g. the `testConnection` handler) are unaffected. When
  * `controlEnabled` is true, both consumption source ids are additionally required.
  *
@@ -108,6 +114,33 @@ export function validateConfig(cfg: Partial<ioBroker.AdapterConfig>): ConfigVali
             defaultStorageControlMode > CONFIG_BOUNDS.defaultStorageControlMode.max
         ) {
             errors.defaultStorageControlMode = `defaultStorageControlMode must be between ${CONFIG_BOUNDS.defaultStorageControlMode.min} and ${CONFIG_BOUNDS.defaultStorageControlMode.max}`;
+        }
+    }
+
+    // defaultFallbackMode: when present, integer in [0, 7] (Req 17.2)
+    const { defaultFallbackMode } = cfg;
+    if (defaultFallbackMode !== undefined) {
+        if (!Number.isInteger(defaultFallbackMode)) {
+            errors.defaultFallbackMode = 'defaultFallbackMode must be an integer';
+        } else if (
+            defaultFallbackMode < CONFIG_BOUNDS.defaultFallbackMode.min ||
+            defaultFallbackMode > CONFIG_BOUNDS.defaultFallbackMode.max
+        ) {
+            errors.defaultFallbackMode = `defaultFallbackMode must be between ${CONFIG_BOUNDS.defaultFallbackMode.min} and ${CONFIG_BOUNDS.defaultFallbackMode.max}`;
+        }
+    }
+
+    // commandTimeout: when present, a positive integer strictly greater than pollInterval (Req 17.3, 17.7)
+    const { commandTimeout } = cfg;
+    if (commandTimeout !== undefined) {
+        if (!Number.isInteger(commandTimeout) || commandTimeout <= 0) {
+            errors.commandTimeout = 'commandTimeout must be a positive integer';
+        } else if (
+            typeof pollInterval === 'number' &&
+            Number.isFinite(pollInterval) &&
+            commandTimeout <= pollInterval
+        ) {
+            errors.commandTimeout = 'commandTimeout must be greater than pollInterval';
         }
     }
 

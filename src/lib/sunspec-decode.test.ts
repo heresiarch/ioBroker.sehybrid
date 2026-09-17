@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import fc from 'fast-check';
 import type { SunSpecDatatype } from './sunspec-decode';
-import { applyScaleFactor, decodeRegisters, encodeFloat32le, isNotImplemented } from './sunspec-decode';
+import { applyScaleFactor, decodeRegisters, encodeFloat32le, encodeUint32le, isNotImplemented } from './sunspec-decode';
 
 // ---------------------------------------------------------------------------
 // Local big-endian encoders: produce 16-bit register words from JS values.
@@ -359,6 +359,47 @@ describe('sunspec-decode', () => {
             expect(encodeFloat32le(5000)).to.deep.equal([0x4000, 0x459c]);
             // And that vector decodes back to 5000 through the existing decoder.
             expect(decodeRegisters(encodeFloat32le(5000), 'float32le')).to.equal(5000);
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // TASK 2.2 — Property 5: uint32le encoding round-trips against the decoder
+    // Validates: Requirements 4.4, 5.1
+    // -----------------------------------------------------------------------
+    describe('Feature: storedge-battery-control, Property 5: uint32le encoding round-trips against the existing decoder', () => {
+        it('Feature: storedge-battery-control, Property 5: uint32le encoding round-trips against the existing decoder', () => {
+            // For any unsigned 32-bit integer v, encoding it with encodeUint32le and
+            // decoding via the existing 'uint32le' decoder reproduces v exactly.
+            fc.assert(
+                fc.property(fc.integer({ min: 0, max: 0xffffffff }), v => {
+                    const value = v >>> 0;
+                    expect(decodeRegisters(encodeUint32le(value), 'uint32le')).to.equal(value);
+                }),
+                RUNS,
+            );
+
+            // The encoder returns [low, high] word order: words[0] = v & 0xffff,
+            // words[1] = (v >>> 16) & 0xffff — the exact inverse of the decoder,
+            // which reads words[1] as the high word and words[0] as the low word.
+            fc.assert(
+                fc.property(fc.integer({ min: 0, max: 0xffffffff }), v => {
+                    const value = v >>> 0;
+                    const [low, high] = encodeUint32le(value);
+                    expect(low).to.equal(value & 0xffff);
+                    expect(high).to.equal((value >>> 16) & 0xffff);
+                }),
+                RUNS,
+            );
+
+            // Fixed-vector examples: low-only values keep a zero high word.
+            expect(encodeUint32le(120)).to.deep.equal([120, 0]);
+            expect(encodeUint32le(3600)).to.deep.equal([3600, 0]);
+            // A value with a non-zero high word: 0x00010000 => low 0x0000, high 0x0001.
+            expect(encodeUint32le(0x00010000)).to.deep.equal([0x0000, 0x0001]);
+            // Those vectors decode back through the existing decoder.
+            expect(decodeRegisters(encodeUint32le(120), 'uint32le')).to.equal(120);
+            expect(decodeRegisters(encodeUint32le(3600), 'uint32le')).to.equal(3600);
+            expect(decodeRegisters(encodeUint32le(0x00010000), 'uint32le')).to.equal(0x00010000);
         });
     });
 });

@@ -1,25 +1,48 @@
 import { expect } from 'chai';
 import fc from 'fast-check';
-import { CONTROL_REGISTERS, REMOTE_CONTROL_COMMAND_TIMEOUT, STORAGE_DEFAULT_MODE } from './control-registers';
+import type { ControlRegisterDef } from './control-registers';
+import {
+    EXPORT_CONFIG,
+    REMOTE_CONTROL_CHARGE_LIMIT,
+    REMOTE_CONTROL_COMMAND_MODE,
+    REMOTE_CONTROL_COMMAND_TIMEOUT,
+    REMOTE_CONTROL_DISCHARGE_LIMIT,
+    STORAGE_CONTROL_MODE,
+    STORAGE_DEFAULT_MODE,
+} from './control-registers';
 import { ModbusControlWriter } from './control-writer';
 import type { IModbusClient, ModbusReadOptions, ModbusWriteOptions } from './modbus-client';
-import { encodeFloat32le } from './sunspec-decode';
+import { encodeFloat32le, encodeUint32le } from './sunspec-decode';
 
 // ---------------------------------------------------------------------------
-// Task 5.2 — Property tests for the control-writer dispatch layer.
+// Tasks 3.2 / 3.3 — Property tests for the reworked control-writer dispatch
+// layer (SolarEdge documented initial-config + heartbeat procedure).
 //
-// The three properties below exercise ModbusControlWriter against a recording
-// IModbusClient double. Every writeSingleRegister(address, value) (FC06) and
+// The properties exercise ModbusControlWriter against a recording IModbusClient
+// double. Every writeSingleRegister(address, value) (FC06) and
 // writeMultipleRegisters(address, words) (FC16) call is captured so a property
 // can assert EXACTLY which register was written, with which encoding, and how
 // many times. Reads are no-ops — the control writer never issues reads.
+//
+// New write flow under test:
+//  - write() selects FC06 for uint16 (0xE000/0xE004/0xE00A/0xE00D), FC16 +
+//    encodeFloat32le for float32 (0xE010/0xE00E), and FC16 + encodeUint32le for
+//    uint32 (0xE00B command timeout).
+//  - applyEnable(computedLimit, { defaultFallbackMode, commandTimeout }) issues
+//    the six-write initial-config sequence in order: 0xE000=0, 0xE004=4,
+//    0xE00A=defaultFallbackMode, 0xE00D=4, 0xE00B=commandTimeout (uint32le, FC16),
+//    0xE010=computedLimit (float32le, FC16).
+//  - heartbeat(computedLimit, lastWritten, commandTimeout) renews 0xE00B and
+//    re-asserts 0xE00D=4 unconditionally, refreshes 0xE010 write-only-if-changed,
+//    and never writes 0xE000/0xE004/0xE00A.
 // ---------------------------------------------------------------------------
 
 /** StorEdge control-register addresses referenced by the properties. */
-const ADDR_STORAGE_CONTROL_MODE = 0xe004; // 0xE004 — re-asserted every active cycle
-const ADDR_STORAGE_DEFAULT_MODE = 0xe00a; // 0xE00A — never written (read-only)
-const ADDR_REMOTE_COMMAND_TIMEOUT = 0xe00b; // 0xE00B — never written (read-only)
-const ADDR_REMOTE_COMMAND_MODE = 0xe00d; // 0xE00D — re-asserted every active cycle
+const ADDR_EXPORT_CONFIG = 0xe000; // 0xE000 — initial config only (=0)
+const ADDR_STORAGE_CONTROL_MODE = 0xe004; // 0xE004 — initial config only (=4)
+const ADDR_STORAGE_DEFAULT_MODE = 0xe00a; // 0xE00A — initial config only (=fallback)
+const ADDR_REMOTE_COMMAND_TIMEOUT = 0xe00b; // 0xE00B — renewed every heartbeat (uint32le)
+const ADDR_REMOTE_COMMAND_MODE = 0xe00d; // 0xE00D — re-asserted every heartbeat (=4)
 const ADDR_REMOTE_DISCHARGE_LIMIT = 0xe010; // 0xE010 — write-only-if-changed
 
 /** The command-mode value the writer asserts on 0xE004 and 0xE00D. */
@@ -40,9 +63,22 @@ interface RecordedWrite {
  * writes (`writeSingleRegister`) and FC16 writes (`writeMultipleRegisters`) are
  * appended to {@link writes} in call order. Reads are no-ops that return empty
  * data — the control writer never reads. No real socket is opened.
+ *
+ * When `failAt` is set, the Nth (1-based) write call rejects instead of being
+ * recorded, modelling a Modbus write failure during a heartbeat cycle.
  */
 class RecordingClient implements IModbusClient {
     readonly writes: RecordedWrite[] = [];
+
+    /** 1-based index of the write call that should reject; `undefined` = never fail. */
+    failAt?: number;
+
+    /** Count of write calls seen so far (including the failing one). */
+    private callCount = 0;
+
+    constructor(failAt?: number) {
+        this.failAt = failAt;
+    }
 
     connect(_host: string, _port: number, _unitId: number, _timeoutMs?: number): Promise<void> {
         return Promise.resolve();
@@ -57,11 +93,23 @@ class RecordingClient implements IModbusClient {
     }
 
     writeSingleRegister(address: number, value: number, _opts?: ModbusWriteOptions): Promise<void> {
+        this.callCount++;
+        if (this.failAt !== undefined && this.callCount === this.failAt) {
+            return Promise.reject(
+                new Error(`Modbus write failure at 0x${address.toString(16)} (call ${this.callCount})`),
+            );
+        }
         this.writes.push({ fc: 'FC06', address, payload: value });
         return Promise.resolve();
     }
 
     writeMultipleRegisters(address: number, values: number[], _opts?: ModbusWriteOptions): Promise<void> {
+        this.callCount++;
+        if (this.failAt !== undefined && this.callCount === this.failAt) {
+            return Promise.reject(
+                new Error(`Modbus write failure at 0x${address.toString(16)} (call ${this.callCount})`),
+            );
+        }
         this.writes.push({ fc: 'FC16', address, payload: values.slice() });
         return Promise.resolve();
     }
@@ -87,26 +135,207 @@ function writesTo(client: RecordingClient, address: number): RecordedWrite[] {
 
 describe('control-writer', () => {
     // -----------------------------------------------------------------------
-    // Feature: storedge-battery-control, Property 7: Discharge limit is written
+    // Feature: storedge-battery-control, Property 2: FC06/FC16 forwarding and
+    // function-code selection.
+    // Validates: Requirements 2.3, 2.4, 2.5
+    //
+    // write() maps each control-register def to the correct Modbus function code
+    // and on-the-wire encoding:
+    //   uint16  (0xE000/0xE004/0xE00A/0xE00D) → FC06 writeSingleRegister(addr, value)
+    //   float32 (0xE010/0xE00E)               → FC16 writeMultipleRegisters(addr, encodeFloat32le(value))
+    //   uint32  (0xE00B command timeout)      → FC16 writeMultipleRegisters(addr, encodeUint32le(value))
+    // -----------------------------------------------------------------------
+    describe('Feature: storedge-battery-control, Property 2: FC06/FC16 forwarding and function-code selection', () => {
+        it('Feature: storedge-battery-control, Property 2: each def is dispatched to the correct FC and encoding', async () => {
+            // uint16 registers → FC06 with the raw integer value.
+            const uint16Defs: ControlRegisterDef[] = [
+                EXPORT_CONFIG,
+                STORAGE_CONTROL_MODE,
+                STORAGE_DEFAULT_MODE,
+                REMOTE_CONTROL_COMMAND_MODE,
+            ];
+            // float32 registers → FC16 with encodeFloat32le.
+            const float32Defs: ControlRegisterDef[] = [REMOTE_CONTROL_DISCHARGE_LIMIT, REMOTE_CONTROL_CHARGE_LIMIT];
+
+            const uint16ValueArb = fc.integer({ min: 0, max: 0xffff });
+            const float32ValueArb = fc.double({ min: 0, max: 100000, noNaN: true, noDefaultInfinity: true });
+            const uint32ValueArb = fc.integer({ min: 0, max: 86400 });
+
+            // ---- uint16 defs → FC06 ----
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.integer({ min: 0, max: uint16Defs.length - 1 }),
+                    uint16ValueArb,
+                    async (defIndex, value) => {
+                        const def = uint16Defs[defIndex];
+                        const client = new RecordingClient();
+                        const writer = new ModbusControlWriter(client);
+
+                        await writer.write(def, value);
+
+                        expect(client.writes.length, 'uint16 write issues exactly one Modbus call').to.equal(1);
+                        expect(client.writes[0]).to.deep.equal({ fc: 'FC06', address: def.address, payload: value });
+                    },
+                ),
+                RUNS,
+            );
+
+            // ---- float32 defs → FC16 + encodeFloat32le ----
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.integer({ min: 0, max: float32Defs.length - 1 }),
+                    float32ValueArb,
+                    async (defIndex, value) => {
+                        const def = float32Defs[defIndex];
+                        const client = new RecordingClient();
+                        const writer = new ModbusControlWriter(client);
+
+                        await writer.write(def, value);
+
+                        expect(client.writes.length, 'float32 write issues exactly one Modbus call').to.equal(1);
+                        expect(client.writes[0]).to.deep.equal({
+                            fc: 'FC16',
+                            address: def.address,
+                            payload: encodeFloat32le(value),
+                        });
+                    },
+                ),
+                RUNS,
+            );
+
+            // ---- uint32 (0xE00B command timeout) → FC16 + encodeUint32le ----
+            await fc.assert(
+                fc.asyncProperty(uint32ValueArb, async commandTimeout => {
+                    const client = new RecordingClient();
+                    const writer = new ModbusControlWriter(client);
+
+                    await writer.write(REMOTE_CONTROL_COMMAND_TIMEOUT, commandTimeout);
+
+                    expect(client.writes.length, 'uint32 write issues exactly one Modbus call').to.equal(1);
+                    expect(client.writes[0].fc, '0xE00B must be written via FC16').to.equal('FC16');
+                    expect(client.writes[0].address, '0xE00B address').to.equal(ADDR_REMOTE_COMMAND_TIMEOUT);
+                    expect(
+                        client.writes[0].payload,
+                        '0xE00B payload must be encodeUint32le(commandTimeout)',
+                    ).to.deep.equal(encodeUint32le(commandTimeout));
+                }),
+                RUNS,
+            );
+        });
+
+        it('Feature: storedge-battery-control, Property 2: write() refuses a def carrying no function code', async () => {
+            const valueArb = fc.double({ min: 0, max: 100000, noNaN: true, noDefaultInfinity: true });
+
+            await fc.assert(
+                fc.asyncProperty(valueArb, async value => {
+                    // Synthetic def with fc undefined — write() must refuse it and
+                    // issue no Modbus call.
+                    const synthetic: ControlRegisterDef = {
+                        name: 'syntheticNoFc',
+                        address: 0xe0ff,
+                        kind: 'uint16',
+                        length: 1,
+                        iobType: 'number',
+                        min: 0,
+                        max: 0xffff,
+                        // fc intentionally omitted
+                    };
+
+                    const client = new RecordingClient();
+                    const writer = new ModbusControlWriter(client);
+
+                    let rejected = false;
+                    try {
+                        await writer.write(synthetic, value);
+                    } catch {
+                        rejected = true;
+                    }
+
+                    expect(rejected, 'write() on a def with no fc must be refused').to.equal(true);
+                    expect(client.writes.length, 'refused write must issue no Modbus call').to.equal(0);
+                }),
+                RUNS,
+            );
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Feature: storedge-battery-control, Property 9: Initial configuration writes
+    // the full sequence in order.
+    // Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
+    //
+    // For any computedLimit, defaultFallbackMode (0..7) and commandTimeout,
+    // applyEnable issues EXACTLY these six writes IN ORDER and no other register:
+    //   1. FC06 0xE000 = 0
+    //   2. FC06 0xE004 = 4
+    //   3. FC06 0xE00A = defaultFallbackMode
+    //   4. FC06 0xE00D = 4
+    //   5. FC16 0xE00B = encodeUint32le(commandTimeout)
+    //   6. FC16 0xE010 = encodeFloat32le(computedLimit)
+    // -----------------------------------------------------------------------
+    describe('Feature: storedge-battery-control, Property 9: Initial configuration writes the full sequence in order', () => {
+        it('Feature: storedge-battery-control, Property 9: applyEnable issues exactly the six initial-config writes in order', async () => {
+            const limitArb = fc.double({ min: 0, max: 100000, noNaN: true, noDefaultInfinity: true });
+            const fallbackArb = fc.integer({ min: 0, max: 7 });
+            const timeoutArb = fc.integer({ min: 0, max: 86400 });
+
+            await fc.assert(
+                fc.asyncProperty(
+                    limitArb,
+                    fallbackArb,
+                    timeoutArb,
+                    async (computedLimit, defaultFallbackMode, commandTimeout) => {
+                        const client = new RecordingClient();
+                        const writer = new ModbusControlWriter(client);
+
+                        await writer.applyEnable(computedLimit, { defaultFallbackMode, commandTimeout });
+
+                        // Exactly the six documented writes, in order, and nothing else.
+                        expect(client.writes).to.deep.equal([
+                            { fc: 'FC06', address: ADDR_EXPORT_CONFIG, payload: 0 },
+                            { fc: 'FC06', address: ADDR_STORAGE_CONTROL_MODE, payload: REMOTE_CONTROL_MODE },
+                            { fc: 'FC06', address: ADDR_STORAGE_DEFAULT_MODE, payload: defaultFallbackMode },
+                            { fc: 'FC06', address: ADDR_REMOTE_COMMAND_MODE, payload: REMOTE_CONTROL_MODE },
+                            {
+                                fc: 'FC16',
+                                address: ADDR_REMOTE_COMMAND_TIMEOUT,
+                                payload: encodeUint32le(commandTimeout),
+                            },
+                            {
+                                fc: 'FC16',
+                                address: ADDR_REMOTE_DISCHARGE_LIMIT,
+                                payload: encodeFloat32le(computedLimit),
+                            },
+                        ]);
+                    },
+                ),
+                RUNS,
+            );
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Feature: storedge-battery-control, Property 8: Discharge limit is written
     // only when it changes.
-    // Validates: Requirements 8.1, 8.2, 8.3, 11.3
+    // Validates: Requirements 8.1, 8.2, 8.3
     //
     // A model threads the returned lastWritten across a sequence of heartbeat
     // calls. 0xE010 (via FC16 writeMultipleRegisters) is written EXACTLY on the
     // steps where the computed limit differs from the previous written value,
     // never when unchanged; each write encodes the limit as encodeFloat32le; and
     // the returned lastWritten equals the value actually written (or is left
-    // unchanged when the step was skipped).
+    // unchanged when the step was skipped). commandTimeout is threaded through.
     // -----------------------------------------------------------------------
-    describe('Feature: storedge-battery-control, Property 7: Discharge limit is written only when it changes', () => {
-        it('Feature: storedge-battery-control, Property 7: 0xE010 is refreshed exactly on changed steps and lastWritten tracks each write', async () => {
+    describe('Feature: storedge-battery-control, Property 8: Discharge limit is written only when it changes', () => {
+        it('Feature: storedge-battery-control, Property 8: 0xE010 is refreshed exactly on changed steps and lastWritten tracks each write', async () => {
             // A sequence of computed limits. Draw from a small pool of finite
             // watt values so repeats (unchanged steps) occur frequently.
             const limitArb = fc.constantFrom(0, 1, 250, 1000, 2500, 5000, 4999.5, 3333.25);
             const seqArb = fc.array(limitArb, { minLength: 1, maxLength: 20 });
+            const timeoutArb = fc.integer({ min: 1, max: 86400 });
 
             await fc.assert(
-                fc.asyncProperty(seqArb, async limits => {
+                fc.asyncProperty(seqArb, timeoutArb, async (limits, commandTimeout) => {
                     const client = new RecordingClient();
                     const writer = new ModbusControlWriter(client);
 
@@ -118,7 +347,7 @@ describe('control-writer', () => {
                     let lastWritten: number | undefined = undefined;
                     for (const limit of limits) {
                         const before = writesTo(client, ADDR_REMOTE_DISCHARGE_LIMIT).length;
-                        const returned = await writer.heartbeat(limit, lastWritten);
+                        const returned = await writer.heartbeat(limit, lastWritten, commandTimeout);
                         const after = writesTo(client, ADDR_REMOTE_DISCHARGE_LIMIT).length;
 
                         if (limit !== modelLast) {
@@ -153,21 +382,23 @@ describe('control-writer', () => {
     });
 
     // -----------------------------------------------------------------------
-    // Feature: storedge-battery-control, Property 8: Command modes are
-    // re-asserted every active cycle.
-    // Validates: Requirements 11.1, 11.2, 11.3
+    // Feature: storedge-battery-control, Property 10: Heartbeat renews the timeout
+    // and command mode but never the initial-config registers.
+    // Validates: Requirements 10.1, 10.2, 11.1, 11.2, 11.3, 11.4, 12.5
     //
-    // Over N heartbeat calls, EXACTLY N FC06 writes of 0xE004=4 and N of
-    // 0xE00D=4 occur regardless of whether the limit changed; 0xE010 is written
-    // only on the cycles where the limit changed.
+    // Over N heartbeat cycles: EXACTLY N FC16 writes of 0xE00B=encodeUint32le(
+    // commandTimeout) and N FC06 writes of 0xE00D=4 (both unconditional); 0xE010
+    // only on the cycles where the limit changed; and ZERO writes to 0xE000,
+    // 0xE004, and 0xE00A.
     // -----------------------------------------------------------------------
-    describe('Feature: storedge-battery-control, Property 8: Command modes are re-asserted every active cycle', () => {
-        it('Feature: storedge-battery-control, Property 8: N cycles issue N writes of 0xE004=4 and 0xE00D=4, 0xE010 only when changed', async () => {
+    describe('Feature: storedge-battery-control, Property 10: Heartbeat renews the timeout and command mode but never the initial-config registers', () => {
+        it('Feature: storedge-battery-control, Property 10: N cycles renew 0xE00B and 0xE00D=4, refresh 0xE010 only on change, never touch 0xE000/0xE004/0xE00A', async () => {
             const limitArb = fc.constantFrom(0, 1, 500, 1500, 5000, 2500.5);
             const seqArb = fc.array(limitArb, { minLength: 1, maxLength: 25 });
+            const timeoutArb = fc.integer({ min: 1, max: 86400 });
 
             await fc.assert(
-                fc.asyncProperty(seqArb, async limits => {
+                fc.asyncProperty(seqArb, timeoutArb, async (limits, commandTimeout) => {
                     const client = new RecordingClient();
                     const writer = new ModbusControlWriter(client);
 
@@ -177,7 +408,7 @@ describe('control-writer', () => {
 
                     let lastWritten: number | undefined = undefined;
                     for (const limit of limits) {
-                        lastWritten = await writer.heartbeat(limit, lastWritten);
+                        lastWritten = await writer.heartbeat(limit, lastWritten, commandTimeout);
                         if (limit !== modelLast) {
                             expectedDischargeWrites++;
                             modelLast = limit;
@@ -186,12 +417,14 @@ describe('control-writer', () => {
 
                     const n = limits.length;
 
-                    // 0xE004=4 is re-asserted exactly once per cycle via FC06.
-                    const controlModeWrites = writesTo(client, ADDR_STORAGE_CONTROL_MODE);
-                    expect(controlModeWrites.length, 'exactly N writes of 0xE004').to.equal(n);
-                    for (const w of controlModeWrites) {
-                        expect(w.fc, '0xE004 must be FC06').to.equal('FC06');
-                        expect(w.payload, '0xE004 must be re-asserted to 4').to.equal(REMOTE_CONTROL_MODE);
+                    // 0xE00B is renewed exactly once per cycle via FC16, encoded uint32le.
+                    const timeoutWrites = writesTo(client, ADDR_REMOTE_COMMAND_TIMEOUT);
+                    expect(timeoutWrites.length, 'exactly N renewals of 0xE00B').to.equal(n);
+                    for (const w of timeoutWrites) {
+                        expect(w.fc, '0xE00B must be FC16').to.equal('FC16');
+                        expect(w.payload, '0xE00B must be encodeUint32le(commandTimeout)').to.deep.equal(
+                            encodeUint32le(commandTimeout),
+                        );
                     }
 
                     // 0xE00D=4 is re-asserted exactly once per cycle via FC06.
@@ -207,6 +440,20 @@ describe('control-writer', () => {
                     expect(dischargeWrites.length, '0xE010 written only on changed cycles').to.equal(
                         expectedDischargeWrites,
                     );
+
+                    // The initial-config-only registers are NEVER written by heartbeat.
+                    expect(
+                        writesTo(client, ADDR_EXPORT_CONFIG).length,
+                        '0xE000 (export config) must never be written by heartbeat',
+                    ).to.equal(0);
+                    expect(
+                        writesTo(client, ADDR_STORAGE_CONTROL_MODE).length,
+                        '0xE004 (storage control mode) must never be written by heartbeat',
+                    ).to.equal(0);
+                    expect(
+                        writesTo(client, ADDR_STORAGE_DEFAULT_MODE).length,
+                        '0xE00A (storage default mode) must never be written by heartbeat',
+                    ).to.equal(0);
                 }),
                 RUNS,
             );
@@ -214,104 +461,45 @@ describe('control-writer', () => {
     });
 
     // -----------------------------------------------------------------------
-    // Feature: storedge-battery-control, Property 9: The timeout and
-    // default-mode registers are never written.
-    // Validates: Requirements 10.1, 10.2, 12.4
+    // Feature: storedge-battery-control, Property 11: Heartbeat write failures are
+    // non-fatal.
+    // Validates: Requirements 11.6, 14.2
     //
-    // Over any sequence of write()/applyEnable()/applyRevert()/heartbeat() calls
-    // with arbitrary values, no write ever targets 0xE00B (remote-control command
-    // timeout) or 0xE00A (storage default mode). Additionally, write() on those
-    // two read-only defs is refused (rejects/throws).
+    // When a control write during a heartbeat cycle throws a Modbus exception, the
+    // writer propagates it as a rejected promise (the caller/pollOnce routes it
+    // through the existing cycle-failure path rather than swallowing it). Once a
+    // write in the cycle fails, no further writes in that cycle are issued.
     // -----------------------------------------------------------------------
-    describe('Feature: storedge-battery-control, Property 9: The timeout and default-mode registers are never written', () => {
-        it('Feature: storedge-battery-control, Property 9: no op sequence ever writes 0xE00A or 0xE00B', async () => {
-            // The writable defs the property may drive write() with.
-            const writableDefs = CONTROL_REGISTERS.filter(d => !d.readOnly && d.fc);
-
-            type Op =
-                | { kind: 'write'; defIndex: number; value: number }
-                | { kind: 'applyEnable'; limit: number }
-                | { kind: 'applyRevert'; mode: number }
-                | { kind: 'heartbeat'; limit: number };
-
-            const valueArb = fc.double({ min: 0, max: 100000, noNaN: true, noDefaultInfinity: true });
-
-            const opArb: fc.Arbitrary<Op> = fc.oneof(
-                fc.record({
-                    kind: fc.constant<'write'>('write'),
-                    defIndex: fc.integer({ min: 0, max: writableDefs.length - 1 }),
-                    value: valueArb,
-                }),
-                fc.record({ kind: fc.constant<'applyEnable'>('applyEnable'), limit: valueArb }),
-                fc.record({ kind: fc.constant<'applyRevert'>('applyRevert'), mode: fc.integer({ min: 0, max: 4 }) }),
-                fc.record({ kind: fc.constant<'heartbeat'>('heartbeat'), limit: valueArb }),
-            );
+    describe('Feature: storedge-battery-control, Property 11: Heartbeat write failures are non-fatal', () => {
+        it('Feature: storedge-battery-control, Property 11: heartbeat rejects when a write fails and issues no writes after the failing one', async () => {
+            const limitArb = fc.double({ min: 0, max: 100000, noNaN: true, noDefaultInfinity: true });
+            const timeoutArb = fc.integer({ min: 1, max: 86400 });
+            // A heartbeat that writes a changed limit issues up to three writes:
+            // 0xE00B (call 1), 0xE00D (call 2), 0xE010 (call 3). Fail one of them.
+            const failAtArb = fc.integer({ min: 1, max: 3 });
 
             await fc.assert(
-                fc.asyncProperty(fc.array(opArb, { minLength: 1, maxLength: 20 }), async ops => {
-                    const client = new RecordingClient();
+                fc.asyncProperty(limitArb, timeoutArb, failAtArb, async (limit, commandTimeout, failAt) => {
+                    const client = new RecordingClient(failAt);
                     const writer = new ModbusControlWriter(client);
 
-                    let lastWritten: number | undefined = undefined;
-                    for (const op of ops) {
-                        switch (op.kind) {
-                            case 'write':
-                                await writer.write(writableDefs[op.defIndex], op.value);
-                                break;
-                            case 'applyEnable':
-                                await writer.applyEnable(op.limit);
-                                break;
-                            case 'applyRevert':
-                                await writer.applyRevert(op.mode);
-                                break;
-                            case 'heartbeat':
-                                lastWritten = await writer.heartbeat(op.limit, lastWritten);
-                                break;
-                        }
-                    }
-
-                    // No write ever targets the never-written registers.
-                    expect(
-                        writesTo(client, ADDR_STORAGE_DEFAULT_MODE).length,
-                        '0xE00A (storage default mode) must never be written',
-                    ).to.equal(0);
-                    expect(
-                        writesTo(client, ADDR_REMOTE_COMMAND_TIMEOUT).length,
-                        '0xE00B (remote-control command timeout) must never be written',
-                    ).to.equal(0);
-                }),
-                RUNS,
-            );
-        });
-
-        it('Feature: storedge-battery-control, Property 9: write(STORAGE_DEFAULT_MODE) and write(REMOTE_CONTROL_COMMAND_TIMEOUT) are refused', async () => {
-            const valueArb = fc.double({ min: 0, max: 86400, noNaN: true, noDefaultInfinity: true });
-
-            await fc.assert(
-                fc.asyncProperty(valueArb, valueArb, async (defaultModeValue, timeoutValue) => {
-                    const client = new RecordingClient();
-                    const writer = new ModbusControlWriter(client);
-
-                    // write(STORAGE_DEFAULT_MODE, x) — read-only, must reject.
-                    let defaultModeRejected = false;
+                    // lastWritten undefined so the limit is treated as changed and
+                    // heartbeat attempts the 0xE010 write too (the third call).
+                    let rejected = false;
                     try {
-                        await writer.write(STORAGE_DEFAULT_MODE, defaultModeValue);
+                        await writer.heartbeat(limit, undefined, commandTimeout);
                     } catch {
-                        defaultModeRejected = true;
+                        rejected = true;
                     }
-                    expect(defaultModeRejected, 'write(STORAGE_DEFAULT_MODE) must be refused').to.equal(true);
 
-                    // write(REMOTE_CONTROL_COMMAND_TIMEOUT, x) — read-only, must reject.
-                    let timeoutRejected = false;
-                    try {
-                        await writer.write(REMOTE_CONTROL_COMMAND_TIMEOUT, timeoutValue);
-                    } catch {
-                        timeoutRejected = true;
-                    }
-                    expect(timeoutRejected, 'write(REMOTE_CONTROL_COMMAND_TIMEOUT) must be refused').to.equal(true);
+                    expect(rejected, 'heartbeat must reject (propagate) when a write fails').to.equal(true);
 
-                    // The refusals emit no Modbus write of any kind.
-                    expect(client.writes.length, 'refused writes must issue no Modbus call').to.equal(0);
+                    // The failing write short-circuits the cycle: exactly failAt-1
+                    // writes were recorded (the ones before the failure), and none
+                    // after.
+                    expect(client.writes.length, 'no writes are issued after the failing write in the cycle').to.equal(
+                        failAt - 1,
+                    );
                 }),
                 RUNS,
             );
@@ -320,19 +508,24 @@ describe('control-writer', () => {
 
     // -----------------------------------------------------------------------
     // Example tests: the exact call order of applyEnable and applyRevert.
-    // Validates: Requirements 8.1, 9.1, 9.2, 9.3, 12.1
+    // Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 12.1
     // -----------------------------------------------------------------------
     describe('control-writer lifecycle (examples)', () => {
-        it('applyEnable issues, in order, FC06 0xE004=4, FC06 0xE00D=4, FC16 0xE010=encodeFloat32le(limit)', async () => {
+        it('applyEnable issues, in order, the six documented initial-config writes', async () => {
             const client = new RecordingClient();
             const writer = new ModbusControlWriter(client);
             const limit = 5000;
+            const defaultFallbackMode = 1;
+            const commandTimeout = 120;
 
-            await writer.applyEnable(limit);
+            await writer.applyEnable(limit, { defaultFallbackMode, commandTimeout });
 
             expect(client.writes).to.deep.equal([
+                { fc: 'FC06', address: ADDR_EXPORT_CONFIG, payload: 0 },
                 { fc: 'FC06', address: ADDR_STORAGE_CONTROL_MODE, payload: REMOTE_CONTROL_MODE },
+                { fc: 'FC06', address: ADDR_STORAGE_DEFAULT_MODE, payload: defaultFallbackMode },
                 { fc: 'FC06', address: ADDR_REMOTE_COMMAND_MODE, payload: REMOTE_CONTROL_MODE },
+                { fc: 'FC16', address: ADDR_REMOTE_COMMAND_TIMEOUT, payload: encodeUint32le(commandTimeout) },
                 { fc: 'FC16', address: ADDR_REMOTE_DISCHARGE_LIMIT, payload: encodeFloat32le(limit) },
             ]);
         });

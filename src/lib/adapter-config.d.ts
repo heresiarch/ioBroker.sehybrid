@@ -15,6 +15,8 @@ declare global {
             wallboxConsumptionStateId: string; // foreign state id (W), default ''
             maxDischargeLimit: number; // W, positive, default 5000
             sourceMaxAgeSeconds: number; // positive int, default 120
+            defaultFallbackMode: number; // 0..7, written once to 0xE00A on enable, default 1 (Req 16)
+            commandTimeout: number; // seconds, written to 0xE00B on enable + renewed each cycle, default 120, must be > pollInterval (Req 16)
         }
     }
 }

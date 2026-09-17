@@ -186,6 +186,24 @@ export function encodeFloat32le(value: number): [number, number] {
 }
 
 /**
+ * Encode an unsigned 32-bit integer into two 16-bit words in LITTLE-ENDIAN WORD
+ * ORDER — the exact inverse of `decodeRegisters(words, 'uint32le')`, which returns
+ * `toUint32(words[1], words[0])`. The low 16 bits are `words[0]` and the high 16
+ * bits are `words[1]`.
+ *
+ * Used for the remote-control command timeout register `0xE00B` (uint32le, FC16).
+ * The value is coerced to the unsigned 32-bit range before splitting.
+ *
+ * @param value
+ */
+export function encodeUint32le(value: number): [number, number] {
+    const v = value >>> 0; // coerce to unsigned 32-bit
+    const low = v & 0xffff; // least-significant 16 bits
+    const high = (v >>> 16) & 0xffff; // most-significant 16 bits
+    return [low, high]; // words[0] = low, words[1] = high (little-endian WORD order)
+}
+
+/**
  * Decode packed big-endian byte pairs into an ASCII/latin1 string, trimming trailing
  * NUL and space padding (Req 3.7).
  *

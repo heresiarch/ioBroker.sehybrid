@@ -23,6 +23,16 @@ import { SunSpecReader, type Logger } from './lib/sunspec-reader';
 const MAX_CONSECUTIVE_FAILURES = 10;
 
 /**
+ * Control-register addresses that a user-edited expert state may dispatch a write for
+ * (Req 12.6, 13.4): the storage control mode (0xE004), the remote command mode
+ * (0xE00D), and the discharge limit (0xE010). The initial-config-only registers
+ * 0xE000/0xE00A and the adapter-renewed timeout 0xE00B are deliberately excluded, so a
+ * user change never resolves to a write for them (defensive — no writable expert state
+ * exists for those in the first place).
+ */
+const WRITABLE_EXPERT = new Set<number>([0xe004, 0xe00d, 0xe010]);
+
+/**
  * SolarEdge SunSpec reader adapter.
  *
  * Read-only Modbus TCP monitor: on start it validates the configuration and ensures the
@@ -224,11 +234,16 @@ class Sehybrid extends utils.Adapter {
             this.config.maxDischargeLimit,
         );
 
-        // Enable sequence: 0xE004=4, 0xE00D=4, 0xE010=initialLimit (Req 9.1-9.3).
+        // Initial-config sequence (SolarEdge documented order, Req 9.1-9.6):
+        // 0xE000=0, 0xE004=4, 0xE00A=defaultFallbackMode, 0xE00D=4,
+        // 0xE00B=commandTimeout (uint32le), 0xE010=initialLimit (float32le).
         // A failure here is logged and non-fatal: controlActive still becomes true so
         // the pollOnce heartbeat re-asserts Remote Control next cycle.
         try {
-            await this.controlWriter.applyEnable(initialLimit);
+            await this.controlWriter.applyEnable(initialLimit, {
+                defaultFallbackMode: this.config.defaultFallbackMode,
+                commandTimeout: this.config.commandTimeout,
+            });
             this.lastWritten0xE010 = initialLimit;
         } catch (error) {
             const reason = error instanceof Error ? error.message : String(error);
@@ -330,10 +345,12 @@ class Sehybrid extends utils.Adapter {
      *     recomputes the discharge limit, and writes `0xE010` only when it changed
      *     (write-only-if-changed) (Req 6.1, 8.1, 8.2, 8.3).
      *  2. An expert control state under this instance's `control.` namespace is
-     *     resolved via {@link findControlDef}; unknown or read-only ids (no `fc`)
-     *     are ignored, `0xE010` honors write-only-if-changed, everything else is
-     *     written directly. On success the value is acked so the re-entrant change
-     *     is dropped by the ack guard (Req 13.4, 13.5, 14.3).
+     *     resolved via {@link findControlDef}; only ids in the writable-expert set
+     *     `{0xE004, 0xE00D, 0xE010}` dispatch a write — unknown, read-only (no `fc`),
+     *     and initial-config-only / renewed ids (0xE000/0xE00A/0xE00B) are ignored.
+     *     `0xE010` honors write-only-if-changed, everything else is written directly.
+     *     On success the value is acked so the re-entrant change is dropped by the ack
+     *     guard (Req 12.6, 13.4, 13.5, 14.3).
      *
      * All Modbus writes are wrapped: a failure is logged and the previous acked
      * value / `lastWritten0xE010` is retained; nothing is thrown out (Req 14.1, 14.2).
@@ -396,9 +413,12 @@ class Sehybrid extends utils.Adapter {
         }
         const leaf = id.slice(id.lastIndexOf('.') + 1);
         const def = findControlDef(leaf);
-        // Unknown leaf or a read-only register (no write function code) → ignore
-        // (e.g. remoteControlCommandTimeout, computedDischargeLimit, controlActive).
-        if (!def || !def.fc) {
+        // Ignore unless the id resolves to a writable expert register in the allowed
+        // set {0xE004, 0xE00D, 0xE010}: unknown leaves, read-only registers (no write
+        // function code), and initial-config-only / adapter-renewed registers
+        // (0xE000/0xE00A/0xE00B, computedDischargeLimit, controlActive) never dispatch
+        // a user-driven write (Req 12.6, 13.4, 13.5).
+        if (!def || !def.fc || !WRITABLE_EXPERT.has(def.address)) {
             return;
         }
 
@@ -522,9 +542,14 @@ class Sehybrid extends utils.Adapter {
                     this.config.sourceMaxAgeSeconds,
                     this.config.maxDischargeLimit,
                 );
-                // Re-assert 0xE004=4 and 0xE00D=4 UNCONDITIONALLY (keep-alive) and
-                // refresh 0xE010 only when the limit changed (Req 11.1-11.4, 8.2).
-                this.lastWritten0xE010 = await this.controlWriter.heartbeat(limit, this.lastWritten0xE010);
+                // Heartbeat: renew 0xE00B=commandTimeout and re-assert 0xE00D=4
+                // UNCONDITIONALLY (keep-alive), refresh 0xE010 write-only-if-changed,
+                // and do NOT re-assert 0xE000/0xE004/0xE00A (Req 11.1-11.4, 8.2, 10.2).
+                this.lastWritten0xE010 = await this.controlWriter.heartbeat(
+                    limit,
+                    this.lastWritten0xE010,
+                    this.config.commandTimeout,
+                );
                 // Reflect the current computed limit on the normal surface.
                 await stateManager.setControlAck('computedDischargeLimit', limit);
             }

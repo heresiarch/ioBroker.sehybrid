@@ -8,7 +8,7 @@
 // (low word first, bytes big-endian within each word), matching the adapter's
 // existing `float32le`/`uint32le` decoding convention.
 //
-// Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
+// Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 3.3, 3.4
 
 /** Value encoding of a control register on the wire. */
 export type ControlRegisterKind = 'uint16' | 'float32' | 'uint32';
@@ -38,9 +38,26 @@ export interface ControlRegisterDef {
     max: number;
     /** Write function code the adapter uses (FC06 uint16, FC16 multiword). Absent = never written. */
     fc?: 'FC06' | 'FC16';
-    /** True when the register must never be written. */
+    /**
+     * Governs whether the backing EXPERT STATE is user-writable: `true` means the
+     * expert state only reflects a value and never accepts user writes. Whether the
+     * underlying register is written by the adapter is driven by `fc` presence, not
+     * this flag.
+     */
     readOnly?: boolean;
 }
+
+/** Export Configuration `0xE000` (uint16, 0..0xffff). Written once (=0) on enable. (Req 4.1) */
+export const EXPORT_CONFIG: ControlRegisterDef = {
+    name: 'exportConfig',
+    address: 0xe000,
+    kind: 'uint16',
+    length: 1,
+    iobType: 'number',
+    min: 0,
+    max: 0xffff,
+    fc: 'FC06',
+};
 
 /** Storage Control Mode `0xE004` (uint16, 0..4). Selects the storage control mode. (Req 4.1) */
 export const STORAGE_CONTROL_MODE: ControlRegisterDef = {
@@ -54,7 +71,7 @@ export const STORAGE_CONTROL_MODE: ControlRegisterDef = {
     fc: 'FC06',
 };
 
-/** Storage Charge/Discharge Default Mode `0xE00A` (uint16, 0..7). Never written by the adapter. (Req 4.2) */
+/** Storage Charge/Discharge Default Mode `0xE00A` (uint16, 0..7). Written once on enable (=configured fallback mode). (Req 4.3) */
 export const STORAGE_DEFAULT_MODE: ControlRegisterDef = {
     name: 'storageDefaultMode',
     address: 0xe00a,
@@ -63,10 +80,10 @@ export const STORAGE_DEFAULT_MODE: ControlRegisterDef = {
     iobType: 'number',
     min: 0,
     max: 7,
-    readOnly: true,
+    fc: 'FC06',
 };
 
-/** Remote Control Command Timeout `0xE00B` (uint32 seconds, 0..86400). Never written; read-only. (Req 4.3) */
+/** Remote Control Command Timeout `0xE00B` (uint32 seconds, 0..86400). Written on enable and renewed each cycle (uint32le, FC16). (Req 4.4) */
 export const REMOTE_CONTROL_COMMAND_TIMEOUT: ControlRegisterDef = {
     name: 'remoteControlCommandTimeout',
     address: 0xe00b,
@@ -77,7 +94,7 @@ export const REMOTE_CONTROL_COMMAND_TIMEOUT: ControlRegisterDef = {
     unit: 's',
     min: 0,
     max: 86400,
-    readOnly: true,
+    fc: 'FC16',
 };
 
 /** Remote Control Command Mode `0xE00D` (uint16, 0..7). Selects the remote control command mode. (Req 4.4) */
@@ -125,6 +142,7 @@ export const REMOTE_CONTROL_DISCHARGE_LIMIT: ControlRegisterDef = {
  * map — never polled and never in the SunSpec value table (Req 4.7).
  */
 export const CONTROL_REGISTERS: readonly ControlRegisterDef[] = [
+    EXPORT_CONFIG,
     STORAGE_CONTROL_MODE,
     STORAGE_DEFAULT_MODE,
     REMOTE_CONTROL_COMMAND_TIMEOUT,

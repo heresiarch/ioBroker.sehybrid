@@ -146,7 +146,10 @@ interface ControlStateDef {
  *
  * Writable raw registers (`0xE004`, `0xE00D`, `0xE010`) are `read=true, write=true`
  * (Req 13.1); the timeout register (`0xE00B`) and the two reflections are read-only
- * (`read=true, write=false`) (Req 13.2). All are marked `common.expert = true`.
+ * (`read=true, write=false`) (Req 13.2). The `remoteControlCommandTimeout` state stays
+ * read-only even though the adapter now WRITES register `0xE00B` to the inverter (on
+ * enable and renewed each control cycle): the state merely reflects the adapter-renewed
+ * commandTimeout value and is never set by users. All are marked `common.expert = true`.
  */
 const CONTROL_STATE_DEFS: readonly ControlStateDef[] = [
     { name: 'storageControlMode', type: 'number', role: 'level.mode', write: true },

@@ -29,7 +29,14 @@ import ModbusRTU from 'modbus-serial';
 
 import { validateConfig } from './config-validation';
 import { computeDischargeLimit, type SourceSample } from './consumption';
-import { REMOTE_CONTROL_COMMAND_MODE, REMOTE_CONTROL_DISCHARGE_LIMIT, STORAGE_CONTROL_MODE } from './control-registers';
+import {
+    EXPORT_CONFIG,
+    REMOTE_CONTROL_COMMAND_MODE,
+    REMOTE_CONTROL_COMMAND_TIMEOUT,
+    REMOTE_CONTROL_DISCHARGE_LIMIT,
+    STORAGE_CONTROL_MODE,
+    STORAGE_DEFAULT_MODE,
+} from './control-registers';
 import { ModbusControlWriter } from './control-writer';
 import { ModbusClient } from './modbus-client';
 import { StateManager, type StateManagerAdapter } from './state-manager';
@@ -965,12 +972,21 @@ describe('Feature: solaredge-sunspec-reader, integration: timeout and reconnect'
 /**
  * Drives the REAL ModbusControlWriter (FC06/FC16) over TCP against the in-process
  * mock server, so every enable/heartbeat/revert write actually lands in the mock
- * device's RegisterStore. The scenario then reads the store back to assert the
- * on-the-wire result: command modes are re-asserted every cycle, the discharge
- * limit is written only when it changes, and disable reverts 0xE004 to the
- * configured default while the heartbeat stops.
+ * device's RegisterStore. The scenario follows SolarEdge's documented procedure:
  *
- * Requirements covered: 8.2, 9.1, 9.2, 9.3, 11.1, 11.2, 11.3, 12.1, 12.3.
+ *   ENABLE   -> the ordered six-write initial-config sequence
+ *               (0xE000=0, 0xE004=4, 0xE00A=fallback, 0xE00D=4,
+ *                0xE00B=commandTimeout (uint32le), 0xE010=limit (float32le)).
+ *   CYCLE A  -> heartbeat with a CHANGED limit: 0xE00B renewed, 0xE00D re-asserted,
+ *               0xE010 rewritten; the initial-config regs 0xE000/0xE004/0xE00A are
+ *               NEVER re-written by the heartbeat.
+ *   CYCLE B  -> heartbeat with an UNCHANGED limit: 0xE00B renewed + 0xE00D
+ *               re-asserted, but 0xE010 skipped (write-only-if-changed).
+ *   DISABLE  -> applyRevert restores 0xE004 to the configured default; the
+ *               heartbeat stops, so 0xE004 stays put.
+ *
+ * Requirements covered: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.2, 11.1, 11.2, 11.3, 11.4,
+ * 12.1, 12.3, 12.4, 12.5.
  */
 describe('Feature: storedge-battery-control, integration: control lifecycle', () => {
     let server: MockServer | undefined;
@@ -979,13 +995,20 @@ describe('Feature: storedge-battery-control, integration: control lifecycle', ()
     let store: RegisterStore;
 
     // Control-register addresses under test (from the production defs).
+    const ADDR_E000 = EXPORT_CONFIG.address; // 0xE000 export config
     const ADDR_E004 = STORAGE_CONTROL_MODE.address; // 0xE004 storage control mode
+    const ADDR_E00A = STORAGE_DEFAULT_MODE.address; // 0xE00A storage default (fallback) mode
+    const ADDR_E00B = REMOTE_CONTROL_COMMAND_TIMEOUT.address; // 0xE00B command timeout (uint32le)
     const ADDR_E00D = REMOTE_CONTROL_COMMAND_MODE.address; // 0xE00D remote control command mode
     const ADDR_E010 = REMOTE_CONTROL_DISCHARGE_LIMIT.address; // 0xE010 discharge limit (float32le)
 
     /** decode the two words stored at 0xE010 through the real float32le decoder. */
     const readLimit = (): number | string | null =>
         decodeRegisters([store.get(ADDR_E010), store.get(ADDR_E010 + 1)], 'float32le');
+
+    /** decode the two words stored at 0xE00B through the real uint32le decoder. */
+    const readTimeout = (): number | string | null =>
+        decodeRegisters([store.get(ADDR_E00B), store.get(ADDR_E00B + 1)], 'uint32le');
 
     before(async function () {
         this.timeout(15000);
@@ -999,7 +1022,7 @@ describe('Feature: storedge-battery-control, integration: control lifecycle', ()
         await closeServer(server);
     });
 
-    it('enables, heartbeats with write-only-if-changed, and reverts on disable (Req 8.2, 9.1, 9.2, 9.3, 11.1, 11.2, 11.3, 12.1, 12.3)', async function () {
+    it('runs the documented initial-config then heartbeats and reverts on disable (Req 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.2, 11.1, 11.2, 11.3, 11.4, 12.1, 12.3, 12.4, 12.5)', async function () {
         this.timeout(15000);
 
         client = new ModbusClient();
@@ -1015,18 +1038,32 @@ describe('Feature: storedge-battery-control, integration: control lifecycle', ()
         const nowMs = Date.now();
         const sample = (val: number): SourceSample => ({ val, ts: nowMs });
 
-        // --- ENABLE ---------------------------------------------------------
+        const defaultFallbackMode = 1; // Maximize Self Consumption
+        const commandTimeout = 120; // seconds; renewed each heartbeat cycle
+
+        // --- ENABLE: the ordered six-write initial-config sequence ----------
         // limit0 = min(max(house - wallbox, 0), max) = min(max(3000-500,0),5000) = 2500
         const limit0 = computeDischargeLimit(sample(3000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
         expect(limit0).to.equal(2500);
-        await writer.applyEnable(limit0);
+        await writer.applyEnable(limit0, { defaultFallbackMode, commandTimeout });
 
-        expect(store.get(ADDR_E004), '0xE004 after enable').to.equal(4);
-        expect(store.get(ADDR_E00D), '0xE00D after enable').to.equal(4);
-        // 0xE010 must round-trip through the real float32le encode+write+decode.
+        // 0xE000=0, 0xE004=4, 0xE00A=fallback, 0xE00D=4 (all FC06 single words).
+        expect(store.get(ADDR_E000), '0xE000 export config = 0 after enable').to.equal(0);
+        expect(store.get(ADDR_E004), '0xE004 storage control mode = 4 after enable').to.equal(4);
+        expect(store.get(ADDR_E00A), '0xE00A fallback mode after enable').to.equal(defaultFallbackMode);
+        expect(store.get(ADDR_E00D), '0xE00D command mode = 4 after enable').to.equal(4);
+        // 0xE00B command timeout round-trips through the real uint32le encode+decode.
+        expect(readTimeout(), '0xE00B decodes to commandTimeout after enable').to.equal(commandTimeout);
+        // 0xE010 round-trips through the real float32le encode+write+decode.
         expect(readLimit(), '0xE010 decodes to limit0 after enable').to.equal(limit0);
-        const e010WritesAfterEnable = store.writeCount(ADDR_E010);
-        expect(e010WritesAfterEnable, '0xE010 written once by enable').to.equal(1);
+
+        // Each initial-config register written exactly once by enable.
+        expect(store.writeCount(ADDR_E000), '0xE000 written once by enable').to.equal(1);
+        expect(store.writeCount(ADDR_E004), '0xE004 written once by enable').to.equal(1);
+        expect(store.writeCount(ADDR_E00A), '0xE00A written once by enable').to.equal(1);
+        expect(store.writeCount(ADDR_E00D), '0xE00D written once by enable').to.equal(1);
+        expect(store.writeCount(ADDR_E00B), '0xE00B written once by enable').to.equal(1);
+        expect(store.writeCount(ADDR_E010), '0xE010 written once by enable').to.equal(1);
 
         let lastWritten: number | undefined = limit0;
 
@@ -1035,52 +1072,65 @@ describe('Feature: storedge-battery-control, integration: control lifecycle', ()
         expect(limitA).to.equal(1500);
         expect(limitA).to.not.equal(limit0);
 
+        const e000WritesBeforeA = store.writeCount(ADDR_E000);
         const e004WritesBeforeA = store.writeCount(ADDR_E004);
+        const e00aWritesBeforeA = store.writeCount(ADDR_E00A);
+        const e00bWritesBeforeA = store.writeCount(ADDR_E00B);
         const e00dWritesBeforeA = store.writeCount(ADDR_E00D);
         const e010WritesBeforeA = store.writeCount(ADDR_E010);
 
-        lastWritten = await writer.heartbeat(limitA, lastWritten);
+        lastWritten = await writer.heartbeat(limitA, lastWritten, commandTimeout);
 
-        // Command modes re-asserted unconditionally (Req 11.1, 11.2).
-        expect(store.get(ADDR_E004), '0xE004 re-asserted in cycle A').to.equal(4);
+        // 0xE00B renewed + 0xE00D re-asserted unconditionally (Req 10.2, 11.1, 11.2).
+        expect(readTimeout(), '0xE00B still decodes to commandTimeout in cycle A').to.equal(commandTimeout);
         expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle A').to.equal(4);
-        expect(store.writeCount(ADDR_E004)).to.equal(e004WritesBeforeA + 1);
-        expect(store.writeCount(ADDR_E00D)).to.equal(e00dWritesBeforeA + 1);
+        expect(store.writeCount(ADDR_E00B), '0xE00B renewed in cycle A').to.equal(e00bWritesBeforeA + 1);
+        expect(store.writeCount(ADDR_E00D), '0xE00D re-asserted in cycle A').to.equal(e00dWritesBeforeA + 1);
         // Changed limit => 0xE010 rewritten (Req 8.2, 11.3).
         expect(readLimit(), '0xE010 decodes to limitA').to.equal(limitA);
         expect(store.writeCount(ADDR_E010), '0xE010 rewritten on change').to.equal(e010WritesBeforeA + 1);
         expect(lastWritten).to.equal(limitA);
+        // Initial-config registers NEVER re-written by the heartbeat (Req 11.4, 12.5).
+        expect(store.writeCount(ADDR_E000), '0xE000 untouched in cycle A').to.equal(e000WritesBeforeA);
+        expect(store.writeCount(ADDR_E004), '0xE004 untouched in cycle A').to.equal(e004WritesBeforeA);
+        expect(store.writeCount(ADDR_E00A), '0xE00A untouched in cycle A').to.equal(e00aWritesBeforeA);
 
         // --- CYCLE B: limit unchanged (limitB == limitA) --------------------
         const limitB = computeDischargeLimit(sample(2000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
         expect(limitB).to.equal(limitA);
 
+        const e000WritesBeforeB = store.writeCount(ADDR_E000);
         const e004WritesBeforeB = store.writeCount(ADDR_E004);
+        const e00aWritesBeforeB = store.writeCount(ADDR_E00A);
+        const e00bWritesBeforeB = store.writeCount(ADDR_E00B);
         const e00dWritesBeforeB = store.writeCount(ADDR_E00D);
         const e010WritesBeforeB = store.writeCount(ADDR_E010);
 
-        lastWritten = await writer.heartbeat(limitB, lastWritten);
+        lastWritten = await writer.heartbeat(limitB, lastWritten, commandTimeout);
 
-        // Command modes still re-asserted unconditionally (Req 11.1, 11.2).
-        expect(store.get(ADDR_E004), '0xE004 re-asserted in cycle B').to.equal(4);
+        // 0xE00B renewed + 0xE00D re-asserted again (Req 10.2, 11.1, 11.2).
+        expect(readTimeout(), '0xE00B still decodes to commandTimeout in cycle B').to.equal(commandTimeout);
         expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle B').to.equal(4);
-        expect(store.writeCount(ADDR_E004)).to.equal(e004WritesBeforeB + 1);
-        expect(store.writeCount(ADDR_E00D)).to.equal(e00dWritesBeforeB + 1);
+        expect(store.writeCount(ADDR_E00B), '0xE00B renewed in cycle B').to.equal(e00bWritesBeforeB + 1);
+        expect(store.writeCount(ADDR_E00D), '0xE00D re-asserted in cycle B').to.equal(e00dWritesBeforeB + 1);
         // Unchanged limit => 0xE010 NOT rewritten, value unchanged (Req 8.2, 11.3).
         expect(readLimit(), '0xE010 still decodes to limitA').to.equal(limitA);
         expect(store.writeCount(ADDR_E010), '0xE010 skipped when unchanged').to.equal(e010WritesBeforeB);
         expect(lastWritten).to.equal(limitA);
+        // Initial-config registers still untouched by the heartbeat (Req 11.4, 12.5).
+        expect(store.writeCount(ADDR_E000), '0xE000 untouched in cycle B').to.equal(e000WritesBeforeB);
+        expect(store.writeCount(ADDR_E004), '0xE004 untouched in cycle B').to.equal(e004WritesBeforeB);
+        expect(store.writeCount(ADDR_E00A), '0xE00A untouched in cycle B').to.equal(e00aWritesBeforeB);
 
         // --- DISABLE / REVERT ----------------------------------------------
-        const defaultMode = 1; // Maximize Self Consumption
-        await writer.applyRevert(defaultMode);
-        expect(store.get(ADDR_E004), '0xE004 reverted to default on disable').to.equal(defaultMode);
+        await writer.applyRevert(defaultFallbackMode);
+        expect(store.get(ADDR_E004), '0xE004 reverted to default on disable').to.equal(defaultFallbackMode);
 
         // Heartbeat is no longer driven after revert: the store retains the reverted
         // value because no further heartbeat calls are made.
         const e004WritesAfterRevert = store.writeCount(ADDR_E004);
         // (No writer calls here — mirrors main.ts stopping the heartbeat on disable.)
-        expect(store.get(ADDR_E004), '0xE004 stays at default with heartbeat stopped').to.equal(defaultMode);
+        expect(store.get(ADDR_E004), '0xE004 stays at default with heartbeat stopped').to.equal(defaultFallbackMode);
         expect(store.writeCount(ADDR_E004), 'no further 0xE004 writes after revert').to.equal(e004WritesAfterRevert);
     });
 });
