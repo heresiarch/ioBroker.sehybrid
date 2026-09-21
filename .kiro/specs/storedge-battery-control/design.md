@@ -34,7 +34,8 @@ Language for all code examples: **TypeScript** (matching the existing adapter).
 │  onReady()                                                                      │
 │    ├─ validateConfig(config)                    (config-validation.ts, extended)│
 │    ├─ build ModbusClient / StateManager / SunSpecReader                         │
-│    ├─ if (config.controlEnabled):   ── enter CONTROL_ACTIVE ──┐                 │
+│    ├─ pollOnce()   ← connects the Modbus client on demand, then reads         │
+│    ├─ if (config.controlEnabled):   ── enter CONTROL_ACTIVE ──┐  (AFTER connect) │
 │    │     ├─ stateManager.ensureControlStates()                │                 │
 │    │     ├─ subscribeStates('control.*')                      │                 │
 │    │     ├─ subscribeForeignStates(houseId), (wallboxId)      │                 │
@@ -42,7 +43,6 @@ Language for all code examples: **TypeScript** (matching the existing adapter).
 │    │     └─ INITIAL CONFIG (in order):                        │                 │
 │    │          0xE000=0, 0xE004=4, 0xE00A=defaultFallbackMode, │                 │
 │    │          0xE00D=4, 0xE00B=commandTimeout, 0xE010=limit   │                 │
-│    ├─ pollOnce()                                              │                 │
 │    └─ setInterval(pollOnce, pollInterval*1000)                │                 │
 │                                                               ▼                 │
 │  onStateChange(id, state)                              ControlWriter (FC06/FC16)│
@@ -364,6 +364,8 @@ export interface ControlWriter {
 3. `this.subscribeForeignStates(this.config.houseConsumptionStateId);` and the wallbox id (Req 6.1).
 4. Register the handler in the constructor: `this.on('stateChange', this.onStateChange.bind(this));`.
 5. Seed the value cache from `getForeignStateAsync` for both ids, compute the initial limit, then run the **initial-config sequence** `applyEnable(computedLimit, { defaultFallbackMode: config.defaultFallbackMode, commandTimeout: config.commandTimeout })` → `0xE000=0`, `0xE004=4`, `0xE00A=defaultFallbackMode`, `0xE00D=4`, `0xE00B=commandTimeout`, `0xE010=computed` (Req 9). Seed `lastWritten0xE010 = computedLimit` and set `controlActive = true`.
+
+**Ordering:** the control gate runs **after** the first `pollOnce()` in `onReady`, not before it. `pollOnce()` connects the Modbus client on demand (`if (!isConnected()) await connect(...)`), so running it first ensures the enable sequence writes to an already-connected client instead of failing with “Modbus client is not connected” on startup. That first cycle runs with `controlActive` still false, so its heartbeat tail is a no-op. If the first `pollOnce()` cannot connect (inverter briefly unreachable), the enable sequence is deferred non-fatally (logged at warn) and the per-cycle heartbeat runs the initial configuration once the connection is established (Req 9, 11.6, 14.2).
 
 When `config.controlEnabled` is false, none of the above runs: no `ensureControlStates`, no subscriptions, no handler effect, no initial-config sequence, no heartbeat (Req 1.2–1.5). Reads proceed unchanged.
 

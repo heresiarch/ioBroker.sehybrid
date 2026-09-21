@@ -149,10 +149,22 @@ class Sehybrid extends utils.Adapter {
         // since which slots exist is only known after probing the device (Req 9.3, 10.5).
         await this.stateManager.ensureChannel('inverter');
 
+        this.log.info(
+            `Starting SunSpec polling of ${this.config.host}:${this.config.port} (unit ${this.config.unitId}) every ${this.config.pollInterval}s`,
+        );
+
+        // Run one cycle immediately (Req 5.4). This establishes the Modbus
+        // connection (pollOnce connects on demand) BEFORE the control gate runs, so
+        // the enable sequence writes to an already-connected client instead of
+        // failing with "not connected" on first start. This first cycle runs with
+        // control still inactive, so its heartbeat tail is a no-op.
+        await this.pollOnce();
+
         // --- Control gate (Req 1.6): ALL control wiring is gated on controlEnabled. -----
         // When false the adapter stays strictly read-only — no control states, no
         // subscriptions, no enable sequence, no heartbeat (Req 1.2-1.5); reads proceed
-        // unchanged. When true, enter CONTROL_ACTIVE (Req 1.1, 1.3).
+        // unchanged. When true, enter CONTROL_ACTIVE (Req 1.1, 1.3). Run AFTER the
+        // first pollOnce so the client is connected for the enable sequence.
         if (this.config.controlEnabled === true) {
             await this.enableControl();
         } else if (this.controlActive) {
@@ -163,12 +175,7 @@ class Sehybrid extends utils.Adapter {
             await this.disableControl();
         }
 
-        this.log.info(
-            `Starting SunSpec polling of ${this.config.host}:${this.config.port} (unit ${this.config.unitId}) every ${this.config.pollInterval}s`,
-        );
-
-        // Run one cycle immediately, then schedule the repeating timer (Req 5.4).
-        await this.pollOnce();
+        // Schedule the repeating poll timer (Req 5.4).
         this.pollTimer = this.setInterval(() => {
             void this.pollOnce();
         }, this.config.pollInterval * 1000);
@@ -247,9 +254,19 @@ class Sehybrid extends utils.Adapter {
             this.lastWritten0xE010 = initialLimit;
         } catch (error) {
             const reason = error instanceof Error ? error.message : String(error);
-            this.log.error(
-                `Enable sequence failed: ${reason}. Control remains active; the heartbeat will retry next poll cycle.`,
-            );
+            // Non-fatal: controlActive still becomes true so the pollOnce heartbeat
+            // runs the initial config next cycle. A transient "not connected" here
+            // (inverter not reachable yet at startup) is expected and logged calmly;
+            // any other failure is a genuine error worth surfacing.
+            if (/not connected/i.test(reason)) {
+                this.log.warn(
+                    `Enable sequence deferred: ${reason}. The heartbeat will run the initial configuration on the next poll cycle.`,
+                );
+            } else {
+                this.log.error(
+                    `Enable sequence failed: ${reason}. Control remains active; the heartbeat will retry next poll cycle.`,
+                );
+            }
         }
 
         // Reflect status regardless of the enable-write outcome so the heartbeat runs.
