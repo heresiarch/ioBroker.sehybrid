@@ -7,12 +7,14 @@
 import * as utils from '@iobroker/adapter-core';
 
 import { validateConfig } from './lib/config-validation';
-import { computeDischargeLimit, type SourceSample } from './lib/consumption';
-import { findControlDef, REMOTE_CONTROL_DISCHARGE_LIMIT } from './lib/control-registers';
-import { ModbusControlWriter } from './lib/control-writer';
 import { DEFAULT_TIMEOUT_MS, ModbusClient } from './lib/modbus-client';
 import { StateManager, type ChannelPath } from './lib/state-manager';
-import { decodeRegisters } from './lib/sunspec-decode';
+import {
+    STOREDGE_CONTROL_REGISTERS,
+    findStorEdgeControlDef,
+    type StorEdgeControlRegisterDef,
+} from './lib/storedge-control-map';
+import { decodeRegisters, encodeFloat32le, encodeUint32le } from './lib/sunspec-decode';
 import { COMMON_BASE } from './lib/sunspec-map';
 import { SunSpecReader, type Logger } from './lib/sunspec-reader';
 
@@ -22,27 +24,62 @@ import { SunSpecReader, type Logger } from './lib/sunspec-reader';
  */
 const MAX_CONSECUTIVE_FAILURES = 10;
 
+/** Base address of the first StorEdgeControlBlock read span (0xE004..0xE00C). */
+const STOREDGE_BLOCK_SPAN_A_BASE = 0xe004;
+/** Base address of the second StorEdgeControlBlock read span (0xE00D..0xE011). */
+const STOREDGE_BLOCK_SPAN_B_BASE = 0xe00d;
+
 /**
- * Control-register addresses that a user-edited expert state may dispatch a write for
- * (Req 12.6, 13.4): the storage control mode (0xE004), the remote command mode
- * (0xE00D), and the discharge limit (0xE010). The initial-config-only registers
- * 0xE000/0xE00A and the adapter-renewed timeout 0xE00B are deliberately excluded, so a
- * user change never resolves to a write for them (defensive — no writable expert state
- * exists for those in the first place).
+ * Slice the raw words for one StorEdgeControlBlock register def out of whichever
+ * of the two read spans covers its address (Req 5.1, 5.2).
+ *
+ * @param def - The register definition being decoded.
+ * @param spanA - Words read from {@link STOREDGE_BLOCK_SPAN_A_BASE} (0xE004..0xE00C).
+ * @param spanB - Words read from {@link STOREDGE_BLOCK_SPAN_B_BASE} (0xE00D..0xE011).
  */
-const WRITABLE_EXPERT = new Set<number>([0xe004, 0xe00d, 0xe010]);
+function wordsForStorEdgeDef(
+    def: StorEdgeControlRegisterDef,
+    spanA: readonly number[],
+    spanB: readonly number[],
+): number[] {
+    if (def.address >= STOREDGE_BLOCK_SPAN_B_BASE) {
+        const offset = def.address - STOREDGE_BLOCK_SPAN_B_BASE;
+        return spanB.slice(offset, offset + def.length);
+    }
+    const offset = def.address - STOREDGE_BLOCK_SPAN_A_BASE;
+    return spanA.slice(offset, offset + def.length);
+}
+
+/**
+ * Map a StorEdgeControlBlock register's `kind` to the `decodeRegisters`/encode
+ * datatype string it uses on the wire (Req 4.1-4.5).
+ *
+ * @param def - The register definition being decoded.
+ */
+function storEdgeWireDatatype(def: StorEdgeControlRegisterDef): 'uint16' | 'float32le' | 'uint32le' {
+    if (def.kind === 'uint16') {
+        return 'uint16';
+    }
+    if (def.kind === 'float32') {
+        return 'float32le';
+    }
+    return 'uint32le';
+}
 
 /**
  * SolarEdge SunSpec reader adapter.
  *
- * Read-only Modbus TCP monitor: on start it validates the configuration and ensures the
- * `info.connection` indicator and the `inverter` channel exist, then polls the inverter
- * plus every present meter (up to 3) and battery (up to 2) SunSpec block on the
- * configured interval. Meter/battery channels are created on demand once a slot is
- * detected. In read-only mode (`config.controlEnabled` false) the adapter never issues
- * Modbus write function codes and never subscribes to state changes — it only writes
- * acknowledged values it read from the device. When control is enabled it additionally
- * drives the StorEdge Remote Control registers (see {@link enableControl}).
+ * Modbus TCP monitor: on start it validates the configuration and ensures the
+ * `info.connection` indicator, the `inverter` channel, and the always-present
+ * `StorEdgeControlBlock` channel (all nine Global StorEdge Control Block registers,
+ * `read=true, write=true`) exist, then polls the inverter, every present meter (up
+ * to 3) and battery (up to 2) SunSpec block, and the StorEdgeControlBlock registers
+ * on the configured interval. Meter/battery channels are created on demand once a
+ * slot is detected. The StorEdgeControlBlock is unconditional — there is no
+ * configuration setting that gates it: it is created and subscribed on every start,
+ * regardless of any admin config value. A non-acknowledged change to one of its nine
+ * states is range-validated and, if valid, dispatched as a Modbus write via FC06
+ * (uint16) or FC16 (float32le/uint32le) (see {@link handleStorEdgeControlChange}).
  */
 class Sehybrid extends utils.Adapter {
     /** Reused Modbus client; reconnected by {@link pollOnce} after a failed cycle. */
@@ -58,24 +95,6 @@ class Sehybrid extends utils.Adapter {
     /** Overlap guard: true while a polling cycle is in flight (Req 5.5). */
     private polling = false;
 
-    /**
-     * Control-register write dispatcher (FC06/FC16). Constructed only when
-     * `config.controlEnabled` is true; absent in read-only mode (Req 1.6).
-     */
-    private controlWriter?: ModbusControlWriter;
-    /**
-     * True once the enable gate has put the inverter into Remote Control mode;
-     * mirrors `config.controlEnabled` after the `onReady` gate. Stays false in
-     * read-only mode so the poll loop skips the heartbeat (Req 1.2, 1.6).
-     */
-    private controlActive = false;
-    /** Last received house-consumption sample (value + timestamp) for the compute cache. */
-    private lastHouseSample?: SourceSample;
-    /** Last received wallbox-consumption sample (value + timestamp) for the compute cache. */
-    private lastWallboxSample?: SourceSample;
-    /** Last value written to the discharge-limit register 0xE010 (write-only-if-changed). */
-    private lastWritten0xE010?: number;
-
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
             ...options,
@@ -84,8 +103,8 @@ class Sehybrid extends utils.Adapter {
         this.on('ready', this.onReady.bind(this));
         this.on('message', this.onMessage.bind(this));
         this.on('unload', this.onUnload.bind(this));
-        // Bound so control subscriptions have a handler; in read-only mode no
-        // subscriptions are registered so it is never invoked.
+        // Bound so the StorEdgeControlBlock subscription (registered in onReady) has
+        // a handler.
         this.on('stateChange', this.onStateChange.bind(this));
     }
 
@@ -94,9 +113,9 @@ class Sehybrid extends utils.Adapter {
      *
      * Sets the connection indicator to false, validates the config (guarding on a
      * missing host, Req 8.4), constructs the Modbus client / reader / state manager,
-     * ensures the channels, then — only when `config.controlEnabled` is true — enters
-     * control mode (control states, subscriptions, enable sequence) before running the
-     * first poll and scheduling the repeating timer (Req 1.6, 5.4, 7.1, 8.3).
+     * ensures the `inverter` channel and the always-present `StorEdgeControlBlock`
+     * channel (unconditionally, on every start — no config setting gates it), then
+     * runs the first poll and schedules the repeating timer (Req 5.4, 7.1, 8.1, 8.3).
      */
     private async onReady(): Promise<void> {
         // Ensure the connection indicator object exists (it is declared in
@@ -149,31 +168,18 @@ class Sehybrid extends utils.Adapter {
         // since which slots exist is only known after probing the device (Req 9.3, 10.5).
         await this.stateManager.ensureChannel('inverter');
 
+        // Unconditional, every start: create the StorEdgeControlBlock channel and its
+        // nine states, then subscribe to state changes on it. No config setting gates
+        // this — it is always created and always writable (Req 8.1, 8.2, 8.3).
+        await this.stateManager.ensureStorEdgeControlBlock();
+        this.subscribeStates('StorEdgeControlBlock.*');
+
         this.log.info(
             `Starting SunSpec polling of ${this.config.host}:${this.config.port} (unit ${this.config.unitId}) every ${this.config.pollInterval}s`,
         );
 
-        // Run one cycle immediately (Req 5.4). This establishes the Modbus
-        // connection (pollOnce connects on demand) BEFORE the control gate runs, so
-        // the enable sequence writes to an already-connected client instead of
-        // failing with "not connected" on first start. This first cycle runs with
-        // control still inactive, so its heartbeat tail is a no-op.
+        // Run one cycle immediately (Req 5.4).
         await this.pollOnce();
-
-        // --- Control gate (Req 1.6): ALL control wiring is gated on controlEnabled. -----
-        // When false the adapter stays strictly read-only — no control states, no
-        // subscriptions, no enable sequence, no heartbeat (Req 1.2-1.5); reads proceed
-        // unchanged. When true, enter CONTROL_ACTIVE (Req 1.1, 1.3). Run AFTER the
-        // first pollOnce so the client is connected for the enable sequence.
-        if (this.config.controlEnabled === true) {
-            await this.enableControl();
-        } else if (this.controlActive) {
-            // Disable (OFF) transition observed while the adapter is alive: run the
-            // revert path (0xE004=default, unsubscribe, stop heartbeat) (Req 12.1-12.3).
-            // A fresh onReady starts with controlActive=false and simply stays
-            // READ_ONLY here — no control write, matching the no-unload-revert intent.
-            await this.disableControl();
-        }
 
         // Schedule the repeating poll timer (Req 5.4).
         this.pollTimer = this.setInterval(() => {
@@ -182,285 +188,78 @@ class Sehybrid extends utils.Adapter {
     }
 
     /**
-     * Enter CONTROL_ACTIVE: build the control writer, create the expert control
-     * states, subscribe to the control branch and both configured foreign
-     * consumption sources, seed the value cache, and run the enable sequence that
-     * puts the inverter into Remote Control mode (Req 1.1, 1.3, 6.1, 9.1-9.3).
-     *
-     * Only invoked from {@link onReady} when `config.controlEnabled` is true. The
-     * enable writes are wrapped so a Modbus failure is logged and non-fatal: the
-     * adapter keeps running and `controlActive` stays true so the poll-loop
-     * heartbeat retries the assertion next cycle (per design error handling).
-     * Requires the collaborators built in {@link onReady} to exist.
-     */
-    private async enableControl(): Promise<void> {
-        if (!this.modbusClient || !this.stateManager) {
-            // Should not happen: collaborators are built before this runs.
-            return;
-        }
-
-        this.controlWriter = new ModbusControlWriter(this.modbusClient);
-
-        // Create the expert control states (outside the read model) and subscribe to
-        // the control branch so expert edits reach onStateChange (Req 1.3).
-        await this.stateManager.ensureControlStates();
-        this.subscribeStates('control.*');
-
-        // Subscribe to the configured foreign consumption sources (Req 6.1). Only
-        // subscribe when the id is a non-empty string.
-        const houseId = this.config.houseConsumptionStateId;
-        const wallboxId = this.config.wallboxConsumptionStateId;
-        if (typeof houseId === 'string' && houseId.length > 0) {
-            this.subscribeForeignStates(houseId);
-        }
-        if (typeof wallboxId === 'string' && wallboxId.length > 0) {
-            this.subscribeForeignStates(wallboxId);
-        }
-
-        // Seed the value cache from the current source values (Req 6.1). A missing
-        // state leaves the corresponding sample undefined (treated as invalid).
-        if (typeof houseId === 'string' && houseId.length > 0) {
-            const state = await this.getForeignStateAsync(houseId);
-            if (state) {
-                this.lastHouseSample = { val: state.val, ts: state.ts };
-            }
-        }
-        if (typeof wallboxId === 'string' && wallboxId.length > 0) {
-            const state = await this.getForeignStateAsync(wallboxId);
-            if (state) {
-                this.lastWallboxSample = { val: state.val, ts: state.ts };
-            }
-        }
-
-        // Compute the initial discharge limit from the seeded cache (Req 9.3).
-        const initialLimit = computeDischargeLimit(
-            this.lastHouseSample,
-            this.lastWallboxSample,
-            Date.now(),
-            this.config.sourceMaxAgeSeconds,
-            this.config.maxDischargeLimit,
-        );
-
-        // Initial-config sequence (SolarEdge documented order, Req 9.1-9.6):
-        // 0xE000=0, 0xE004=4, 0xE00A=defaultFallbackMode, 0xE00D=4,
-        // 0xE00B=commandTimeout (uint32le), 0xE010=initialLimit (float32le).
-        // A failure here is logged and non-fatal: controlActive still becomes true so
-        // the pollOnce heartbeat re-asserts Remote Control next cycle.
-        try {
-            await this.controlWriter.applyEnable(initialLimit, {
-                defaultFallbackMode: this.config.defaultFallbackMode,
-                commandTimeout: this.config.commandTimeout,
-            });
-            this.lastWritten0xE010 = initialLimit;
-        } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            // Non-fatal: controlActive still becomes true so the pollOnce heartbeat
-            // runs the initial config next cycle. A transient "not connected" here
-            // (inverter not reachable yet at startup) is expected and logged calmly;
-            // any other failure is a genuine error worth surfacing.
-            if (/not connected/i.test(reason)) {
-                this.log.warn(
-                    `Enable sequence deferred: ${reason}. The heartbeat will run the initial configuration on the next poll cycle.`,
-                );
-            } else {
-                this.log.error(
-                    `Enable sequence failed: ${reason}. Control remains active; the heartbeat will retry next poll cycle.`,
-                );
-            }
-        }
-
-        // Reflect status regardless of the enable-write outcome so the heartbeat runs.
-        this.controlActive = true;
-        try {
-            await this.stateManager.setControlAck('controlActive', true);
-            await this.stateManager.setControlAck('computedDischargeLimit', initialLimit);
-        } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            this.log.warn(`Failed to reflect control status states: ${reason}`);
-        }
-
-        this.log.info('StorEdge battery control enabled (Remote Control mode)');
-    }
-
-    /**
-     * Leave CONTROL_ACTIVE: run the disable/revert path used by the OFF transition
-     * (control released while the adapter is alive to observe it).
-     *
-     * Restores 0xE004 to the configured default storage control mode (Req 12.1),
-     * unsubscribes both foreign consumption sources and the `control.` branch,
-     * then clears `controlActive` so subsequent poll cycles skip the heartbeat
-     * (Req 12.2, 12.3). The revert write is wrapped so a Modbus failure is logged
-     * and non-fatal. This method is NEVER called from {@link onUnload}: revert
-     * happens on the OFF transition only, never on unload (Req 12.5).
-     */
-    private async disableControl(): Promise<void> {
-        // Revert 0xE004 to the configured default mode (Req 12.1). Best-effort: a
-        // failure is logged and does not prevent the rest of the teardown.
-        if (this.controlWriter && this.controlActive) {
-            try {
-                await this.controlWriter.applyRevert(this.config.defaultStorageControlMode);
-            } catch (error) {
-                const reason = error instanceof Error ? error.message : String(error);
-                this.log.error(
-                    `Failed to revert storage control mode to ${this.config.defaultStorageControlMode} (0xE004): ${reason}.`,
-                );
-            }
-        }
-
-        // Unsubscribe both foreign sources and the control branch (Req 12.2).
-        const houseId = this.config.houseConsumptionStateId;
-        const wallboxId = this.config.wallboxConsumptionStateId;
-        if (typeof houseId === 'string' && houseId.length > 0) {
-            this.unsubscribeForeignStates(houseId);
-        }
-        if (typeof wallboxId === 'string' && wallboxId.length > 0) {
-            this.unsubscribeForeignStates(wallboxId);
-        }
-        this.unsubscribeStates('control.*');
-
-        // Stop the heartbeat: subsequent poll cycles skip control (Req 12.3).
-        this.controlActive = false;
-        try {
-            await this.stateManager?.setControlAck('controlActive', false);
-        } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            this.log.warn(`Failed to reflect control status state: ${reason}`);
-        }
-
-        this.log.info('StorEdge battery control disabled (reverted to default storage control mode)');
-    }
-
-    /**
-     * Handle a subscribed state change (control branch or a foreign consumption
-     * source). Guards drop deletions and adapter-originated acks up front; the
-     * write dispatch is delegated to {@link handleStateChange} so Modbus failures
-     * stay contained (they are logged and non-fatal, never thrown out of the
-     * event handler) (Req 14.1, 14.2).
+     * Handle a subscribed state change under `StorEdgeControlBlock.*`. Guards drop
+     * deletions and adapter-originated acks up front; the write dispatch is
+     * delegated to {@link handleStorEdgeControlChange} so Modbus failures stay
+     * contained (they are logged and non-fatal, never thrown out of the event
+     * handler) (Req 7.1, 7.2).
      *
      * @param id - The changed state id.
      * @param state - New state, or null/undefined on deletion.
      */
     private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
-        // Deletion — ignore (Req 13.5 boundary).
+        // Deletion — ignore.
         if (!state) {
             return;
         }
-        // Adapter-originated acknowledged write — ignore to prevent write loops (Req 13.5).
+        // Adapter-originated acknowledged write (poll-read or write-ack) — ignore to
+        // prevent write loops.
         if (state.ack) {
             return;
         }
         // Delegate the async dispatch; errors are handled inside the helper.
-        void this.handleStateChange(id, state);
+        void this.handleStorEdgeControlChange(id, state);
     }
 
     /**
-     * Dispatch a non-acked, non-deletion state change (control branch or foreign
-     * consumption source).
+     * Dispatch a non-acked, non-deletion change to a `StorEdgeControlBlock.<leaf>`
+     * state.
      *
-     * Two routes:
-     *  1. A configured foreign source (house/wallbox) updates the value cache,
-     *     recomputes the discharge limit, and writes `0xE010` only when it changed
-     *     (write-only-if-changed) (Req 6.1, 8.1, 8.2, 8.3).
-     *  2. An expert control state under this instance's `control.` namespace is
-     *     resolved via {@link findControlDef}; only ids in the writable-expert set
-     *     `{0xE004, 0xE00D, 0xE010}` dispatch a write — unknown, read-only (no `fc`),
-     *     and initial-config-only / renewed ids (0xE000/0xE00A/0xE00B) are ignored.
-     *     `0xE010` honors write-only-if-changed, everything else is written directly.
-     *     On success the value is acked so the re-entrant change is dropped by the ack
-     *     guard (Req 12.6, 13.4, 13.5, 14.3).
+     * Resolves the leaf to its register def via {@link findStorEdgeControlDef};
+     * ids outside the `StorEdgeControlBlock.` namespace or unknown leaves are
+     * ignored. The candidate value is coerced to a number and range-validated
+     * against `def.min`/`def.max`: an invalid value is logged and rejected — no
+     * write, no ack, the previous value is retained. A valid value is dispatched as
+     * a Modbus write via FC06 (uint16) or FC16 (float32le/uint32le), every time —
+     * there is no write-only-if-changed suppression (Req 6.1-6.4, 7.1-7.5). On
+     * success the value is acknowledged; on failure the error is logged and
+     * non-fatal, and the previous acked value is retained.
      *
-     * All Modbus writes are wrapped: a failure is logged and the previous acked
-     * value / `lastWritten0xE010` is retained; nothing is thrown out (Req 14.1, 14.2).
-     *
-     * @param id - The changed state id (instance-namespaced for control states).
+     * @param id - The changed state id (instance-namespaced).
      * @param state - The new, non-acked state.
      */
-    private async handleStateChange(id: string, state: ioBroker.State): Promise<void> {
-        // Only act while control is active and the collaborators exist.
-        if (!this.controlActive || !this.controlWriter || !this.stateManager) {
+    private async handleStorEdgeControlChange(id: string, state: ioBroker.State): Promise<void> {
+        const prefix = `${this.namespace}.StorEdgeControlBlock.`;
+        if (!id.startsWith(prefix)) {
             return;
         }
-        const controlWriter = this.controlWriter;
-        const stateManager = this.stateManager;
-
-        // --- Route 1: foreign consumption source change (Req 6.1, 8.1-8.3) --------
-        const houseId = this.config.houseConsumptionStateId;
-        const wallboxId = this.config.wallboxConsumptionStateId;
-        if (id === houseId || id === wallboxId) {
-            // Update the value cache with the fresh sample (value + timestamp).
-            if (id === houseId) {
-                this.lastHouseSample = { val: state.val, ts: state.ts };
-            } else {
-                this.lastWallboxSample = { val: state.val, ts: state.ts };
-            }
-
-            // Recompute the target discharge limit from the cache (Req 6.2-6.4, 7.x).
-            const limit = computeDischargeLimit(
-                this.lastHouseSample,
-                this.lastWallboxSample,
-                Date.now(),
-                this.config.sourceMaxAgeSeconds,
-                this.config.maxDischargeLimit,
-            );
-
-            // Write-only-if-changed: skip the FC16 write when the limit is unchanged
-            // (Req 8.2). On failure, retain the previous lastWritten0xE010 (non-fatal).
-            if (limit !== this.lastWritten0xE010) {
-                try {
-                    await controlWriter.write(REMOTE_CONTROL_DISCHARGE_LIMIT, limit);
-                    this.lastWritten0xE010 = limit;
-                    await stateManager.setControlAck('computedDischargeLimit', limit);
-                } catch (error) {
-                    const reason = error instanceof Error ? error.message : String(error);
-                    this.log.error(
-                        `Failed to write discharge limit ${limit} W to 0xE010: ${reason}. Retaining the previous value.`,
-                    );
-                }
-            }
-            return;
-        }
-
-        // --- Route 2: expert control state change (Req 13.4, 13.5, 14.x) ----------
-        // Control ids are delivered in this instance's namespace, e.g.
-        // `sehybrid.0.control.remoteControlDischargeLimit`. Match the control branch
-        // and extract the leaf after the last '.'.
-        const controlPrefix = `${this.namespace}.control.`;
-        if (!id.startsWith(controlPrefix)) {
-            return;
-        }
-        const leaf = id.slice(id.lastIndexOf('.') + 1);
-        const def = findControlDef(leaf);
-        // Ignore unless the id resolves to a writable expert register in the allowed
-        // set {0xE004, 0xE00D, 0xE010}: unknown leaves, read-only registers (no write
-        // function code), and initial-config-only / adapter-renewed registers
-        // (0xE000/0xE00A/0xE00B, computedDischargeLimit, controlActive) never dispatch
-        // a user-driven write (Req 12.6, 13.4, 13.5).
-        if (!def || !def.fc || !WRITABLE_EXPERT.has(def.address)) {
+        const leaf = id.slice(prefix.length);
+        const def = findStorEdgeControlDef(leaf);
+        if (!def) {
             return;
         }
 
         const value = Number(state.val);
+        if (!Number.isFinite(value) || value < def.min || value > def.max) {
+            this.log.error(
+                `Rejected write to ${leaf} (0x${def.address.toString(16).toUpperCase()}): ${state.val} is outside the documented range [${def.min}, ${def.max}]`,
+            );
+            return;
+        }
+
         try {
-            if (def.address === REMOTE_CONTROL_DISCHARGE_LIMIT.address) {
-                // 0xE010 honors write-only-if-changed: ack without writing when the
-                // requested value already matches the last written limit (Req 13.4).
-                if (value === this.lastWritten0xE010) {
-                    await stateManager.setControlAck(leaf, value);
-                    return;
-                }
-                await controlWriter.write(def, value);
-                this.lastWritten0xE010 = value;
+            if (def.kind === 'uint16') {
+                await this.modbusClient!.writeSingleRegister(def.address, value);
+            } else if (def.kind === 'float32') {
+                await this.modbusClient!.writeMultipleRegisters(def.address, encodeFloat32le(value));
             } else {
-                await controlWriter.write(def, value);
+                await this.modbusClient!.writeMultipleRegisters(def.address, encodeUint32le(value));
             }
-            // Ack on success so the re-entrant change is dropped by the ack guard (Req 14.3).
-            await stateManager.setControlAck(leaf, value);
+            await this.stateManager!.ackStorEdgeWrite(def, value);
         } catch (error) {
             const reason = error instanceof Error ? error.message : String(error);
             this.log.error(
-                `Failed to write control register ${leaf} (0x${def.address
-                    .toString(16)
-                    .toUpperCase()}) = ${value}: ${reason}. Retaining the previous acked value.`,
+                `Failed to write ${leaf} (0x${def.address.toString(16).toUpperCase()}) = ${value}: ${reason}. Retaining the previously acknowledged value.`,
             );
         }
     }
@@ -546,29 +345,28 @@ class Sehybrid extends utils.Adapter {
                 this.log.debug('No batteries detected this cycle');
             }
 
-            // --- Control heartbeat tail (Req 11.1-11.5) -----------------------------
-            // Only while control is active. Runs INSIDE this try so a heartbeat write
-            // failure follows the existing cycle-failure path (info.connection=false,
-            // close socket, reconnect next cycle) rather than being swallowed (Req 11.5).
-            if (this.controlActive && this.controlWriter) {
-                // Recompute the target limit from the value cache (Req 6.2-6.4, 7.x).
-                const limit = computeDischargeLimit(
-                    this.lastHouseSample,
-                    this.lastWallboxSample,
-                    Date.now(),
-                    this.config.sourceMaxAgeSeconds,
-                    this.config.maxDischargeLimit,
-                );
-                // Heartbeat: renew 0xE00B=commandTimeout and re-assert 0xE00D=4
-                // UNCONDITIONALLY (keep-alive), refresh 0xE010 write-only-if-changed,
-                // and do NOT re-assert 0xE000/0xE004/0xE00A (Req 11.1-11.4, 8.2, 10.2).
-                this.lastWritten0xE010 = await this.controlWriter.heartbeat(
-                    limit,
-                    this.lastWritten0xE010,
-                    this.config.commandTimeout,
-                );
-                // Reflect the current computed limit on the normal surface.
-                await stateManager.setControlAck('computedDischargeLimit', limit);
+            // --- StorEdgeControlBlock read (Req 5.1-5.4) ----------------------------
+            // Minimal round-trips: the nine registers span two contiguous windows —
+            // 0xE004..0xE00C (9 words: Storage_Control_Mode, Storage_AC_Charge_Policy,
+            // Storage_AC_Charge_Limit [2w], Storage_Backup_Reserved_Setting [2w],
+            // Storage_Charge_Discharge_Default_Mode, Remote_Control_Command_Timeout
+            // [2w]) and 0xE00D..0xE011 (5 words: Remote_Control_Command_Mode,
+            // Remote_Control_Charge_Limit [2w], Remote_Control_Discharge_Limit [2w]).
+            // There is no gap within either span, but a register-map discontinuity
+            // between the two windows is not assumed, so they are read as two
+            // requests rather than one — mirroring the existing segmented-read
+            // pattern used for the battery block elsewhere in this adapter. A read
+            // failure here propagates out of this try and is handled by the existing
+            // catch block below, exactly like an inverter/meter/battery read failure
+            // (no special-casing) (Req 5.4).
+            const blockWordsA = await client.readHoldingRegisters(0xe004, 9); // 0xE004..0xE00C
+            const blockWordsB = await client.readHoldingRegisters(0xe00d, 5); // 0xE00D..0xE011
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
+                const value = decodeRegisters(words, storEdgeWireDatatype(def));
+                if (value !== null) {
+                    await stateManager.writeStorEdgeValue(def, value as number);
+                }
             }
 
             // Cycle completed without throwing: connection is up (Req 7.2, 7.5).

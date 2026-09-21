@@ -6,8 +6,10 @@
 // registers) and FC04 (read input registers), it exposes EXACTLY two write
 // function codes — FC06 (write single register) and FC16 (write multiple
 // registers). No coil write (FC05/FC15) or any other write function code is
-// ever exposed or issued. The adapter targets these writes only at the StorEdge
-// control registers 0xE004, 0xE00D, 0xE010, and (expert-optional) 0xE00E.
+// ever exposed or issued. This write surface is always available (there is no
+// "control enabled" configuration gating it); the adapter targets these writes
+// only at the nine StorEdgeControlBlock registers 0xE004, 0xE005, 0xE006,
+// 0xE008, 0xE00A, 0xE00B, 0xE00D, 0xE00E, and 0xE010.
 //
 // Each network operation is bounded by a 10 second default timeout:
 //  - `connect` races the TCP connect against a rejecting timeout and also passes
@@ -45,9 +47,11 @@ export interface ModbusWriteOptions {
  * Implementations issue only FC03 (holding registers) and FC04 (input registers)
  * for reads, plus EXACTLY the FC06 (write single register) and FC16 (write
  * multiple registers) operations for writes (Req 3.1). No coil write (FC05/FC15)
- * or any other write function code is exposed (Req 3.2). The adapter targets the
- * write operations only at the StorEdge control registers 0xE004, 0xE00D, 0xE010,
- * and (expert-optional) 0xE00E (Req 3.3).
+ * or any other write function code is exposed (Req 3.2). This write surface is
+ * always available — no configuration setting enables, disables, or alters it —
+ * and the adapter targets the write operations only at the nine
+ * StorEdgeControlBlock registers 0xE004, 0xE005, 0xE006, 0xE008, 0xE00A, 0xE00B,
+ * 0xE00D, 0xE00E, and 0xE010 (Req 3.3).
  */
 export interface IModbusClient {
     /** Open a TCP connection with a connect timeout (default 10s) (Req 7.4). */

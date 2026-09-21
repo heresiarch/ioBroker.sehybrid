@@ -2,24 +2,20 @@
 
 ## Overview
 
-This feature adds **consumption-based** SolarEdge StorEdge battery discharge control onto the existing strictly read-only SunSpec adapter. Today the adapter only reads: `src/lib/modbus-client.ts` exposes FC03/FC04 with a 10 s rejecting-timer timeout and a documented read-only invariant (property-tested); `src/lib/state-manager.ts` derives `write=false` states from the SunSpec register map; `src/main.ts` runs a single `pollOnce` `setInterval` loop with an overlap guard, reconnect-on-failure, and `info.connection` handling, and there is **no** `this.on('stateChange', …)` subscription. `src/lib/sunspec-decode.ts` already decodes the StorEdge battery block (`0xE1xx`) as `float32le` — IEEE-754 with **little-endian word order** (low word first, bytes big-endian within each word); `BATTERY_MAP` in `src/lib/sunspec-map.ts` confirms every battery power/energy field uses `float32le`.
+This feature exposes the SolarEdge StorEdge **Global StorEdge Control Block** — nine manufacturer-documented registers at base address `0xE004` (mirrored at `0xF704`) — as a new, always-present, always-active ioBroker channel named `StorEdgeControlBlock`, added onto the existing strictly read-only SunSpec adapter. Today the adapter reads only: `src/lib/modbus-client.ts` exposes FC03/FC04 with a shared 10 s rejecting-timer timeout and a documented read-only invariant (property-tested); `src/lib/state-manager.ts` derives `write=false` states from the SunSpec register map; `src/main.ts` runs a single `pollOnce` `setInterval` loop with an overlap guard, reconnect-on-failure, and `info.connection` handling, and there is no `this.on('stateChange', …)` subscription. `src/lib/sunspec-decode.ts` already decodes/encodes little-endian-word-order values as `float32le`/`uint32le` (`decodeRegisters`, `encodeFloat32le`, `encodeUint32le`) for the `0xE1xx` battery block; this exact convention is reused unchanged for the control block.
 
-The feature drives the StorEdge Remote Control **discharge power limit** register `0xE010` from live household load. The adapter subscribes to two configurable **foreign** ioBroker states — total house consumption (W) and wallbox consumption (W) — and continuously computes `limit = min(max(house - wallbox, 0), maxDischargeLimit)`, writing that limit to `0xE010` (write-only-if-changed). A single master `controlEnabled` **config setting** (not a state) gates everything: OFF ⇒ strictly read-only (no writes, no subscriptions, no heartbeat, reads unchanged); ON ⇒ Control_Active — the adapter follows SolarEdge's documented "Configuration of the Storage Control for Remote Control mode" procedure, which separates a **one-time initial configuration** from a **repeated dynamic command loop**.
+**What changed from the previous (deleted) design.** The prior iteration of this feature was consumption-based: a master `controlEnabled` config switch gated a `ControlWriter` lifecycle (`applyEnable`/`heartbeat`/`applyRevert`) that computed a discharge limit from two foreign house/wallbox consumption states and drove only `0xE010` (plus a fixed initial-configuration sequence touching `0xE000`, `0xE004`, `0xE00A`, `0xE00B`, `0xE00D`). That entire mechanism is **deleted**: there is no `Control_Enabled`/`controlEnabled`, no `Computed_Discharge_Limit`, no `consumption.ts`, no `houseConsumptionStateId`/`wallboxConsumptionStateId`, no heartbeat renewal loop, no initial-configuration write sequence, no `EnableOptions`/`applyEnable`/`heartbeat`/`applyRevert` lifecycle, no `defaultStorageControlMode`/`defaultFallbackMode`/`commandTimeout` config fields, and no StorEdge portal-profile prerequisite or admin warning. `ControlWriter` as a stateful lifecycle class is gone.
 
-**Initial configuration (once, on enable).** In documented order the adapter disables the conflicting export configuration (`0xE000`=0, FC06), selects Remote Control storage mode (`0xE004`=4, FC06), sets the fallback default mode the inverter reverts to if communication is interrupted (`0xE00A`=configured `defaultFallbackMode`, FC06), sets the remote command mode (`0xE00D`=4, FC06), sets the command-timeout keep-alive (`0xE00B`=configured `commandTimeout` seconds, FC16 uint32 little-endian), and writes the initial discharge limit (`0xE010`=computed, FC16 float32le).
-
-**Dynamic heartbeat (every poll cycle while active).** The adapter renews the command timeout (`0xE00B`=commandTimeout, FC16 uint32le, unconditionally), re-writes the command mode (`0xE00D`=4, FC06, unconditionally), and refreshes the discharge limit (`0xE010`, FC16 float32le, write-only-if-changed). The renewed short command timeout is the manufacturer-intended keep-alive; the initial-config registers `0xE000`, `0xE004`, and `0xE00A` are **not** re-asserted each cycle (`0xE004` is written again only on disable revert).
-
-Because the renewed short command timeout (e.g. 120 s) is the primary keep-alive, Remote Control persists across cycles and this also sidesteps the community-reported inverter behavior of resetting oversized timeout values back to 3600 after 24 h. Disabling the StorEdge storage profile in the SolarEdge monitoring portal / SetApp is still **recommended** to avoid the ~10 s portal-side reversion on affected firmware — a **documented manual prerequisite surfaced as an admin warning**, not enforced by code (Req 15).
+**What replaces it.** The adapter now exposes all nine registers of the Global StorEdge Control Block — not just `0xE010` — as one flat, always-on, unconditionally-created channel. There is no master enable switch and no admin configuration of any kind for this feature: the channel and its nine states are created unconditionally at every adapter startup, independent of any config value. The nine registers are read every `pollOnce` cycle on the same schedule as the inverter/meter/battery blocks, and each state is updated with the **live device value** with `ack=true`. The same nine states accept user writes: on a non-acknowledged change, the adapter range-validates the candidate against the register's documented bounds and, if valid, writes it via FC06 or FC16 using the existing little-endian encoding; every validation-passing write is sent (there is no "write-only-if-changed" suppression this time — Requirement 7.2 explicitly forbids it, unlike the old `0xE010`-only design). The user decides what to write to these registers and when — for example from their own ioBroker scripts — the adapter itself never computes a target value or drives one from any other source. These nine `StorEdgeControlBlock` states are the only `write=true` states in the adapter.
 
 Design constraints that shape every decision below:
 
-- **Reuse the existing poll loop.** The heartbeat lives in the `pollOnce` tail inside the existing `try`; no separate control timer is added (Req 11.5).
-- **Keep control separate from the read model.** Control registers are a new module (`control-registers.ts`), never entries in `SUNSPEC_MAP`/`BATTERY_MAP`; control states are created outside the register-map-driven read model (Req 4.8, 13.6).
-- **Reads are untouched.** FC03/FC04 behavior is unchanged; the only new client surface is `writeSingleRegister` (FC06) and `writeMultipleRegisters` (FC16) (Req 2.8, 3.2).
-- **Little-endian multiword write encoding.** `encodeFloat32le` (for `0xE010`/`0xE00E`) and `encodeUint32le` (for `0xE00B`) must be the exact inverses of `decodeRegisters(..., 'float32le')` and `decodeRegisters(..., 'uint32le')` — low word first — the old MSW-first encoders would be wrong for this inverter (Req 5).
-- **Custom React admin, not jsonConfig.** New settings live in `src-admin/src/components/Settings.tsx` with i18n, plus `src/lib/adapter-config.d.ts` and `io-package.json` `native` defaults.
-- **No unload revert.** `onUnload` performs no control write (Req 12.6). Revert-to-default happens only when control is disabled.
+- **Reuse the existing poll loop.** The nine-register read is appended to the `pollOnce` tail inside the existing `try`, on the existing schedule; no separate timer.
+- **Keep control separate from the read model.** The register definitions are a new, standalone module — a sibling of `sunspec-map.ts`, never an entry in `SUNSPEC_MAP`/`BATTERY_MAP` — and the states are created outside the register-map-driven read model (Req 5.1, 8.4).
+- **Reads are untouched.** FC03/FC04 behavior is unchanged; the only client surface used by this feature is `writeSingleRegister` (FC06) and `writeMultipleRegisters` (FC16), now exercised **unconditionally** rather than behind any enable gate (Req 1.8, 2.1, 2.2).
+- **Little-endian multiword encoding, reused.** `encodeFloat32le`/`encodeUint32le` and `decodeRegisters(..., 'float32le'|'uint32le')` already exist in `sunspec-decode.ts` (proven against the `0xE1xx` battery block) and are reused verbatim — no new encoding logic (Req 4).
+- **No admin surface for this feature.** No config field, no React settings section, no i18n keys. The channel behaves identically regardless of any admin setting (Req 8.3).
+- **No lifecycle.** No enable/disable, no heartbeat, no revert-on-disable/unload. The nine states are simply always readable and always writable.
 
 Language for all code examples: **TypeScript** (matching the existing adapter).
 
@@ -28,398 +24,318 @@ Language for all code examples: **TypeScript** (matching the existing adapter).
 ### Component overview
 
 ```
-┌───────────────────────────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────────────────────────────┐
 │ main.ts  (Sehybrid extends utils.Adapter)                                       │
-│                                                                                 │
-│  onReady()                                                                      │
-│    ├─ validateConfig(config)                    (config-validation.ts, extended)│
-│    ├─ build ModbusClient / StateManager / SunSpecReader                         │
-│    ├─ pollOnce()   ← connects the Modbus client on demand, then reads         │
-│    ├─ if (config.controlEnabled):   ── enter CONTROL_ACTIVE ──┐  (AFTER connect) │
-│    │     ├─ stateManager.ensureControlStates()                │                 │
-│    │     ├─ subscribeStates('control.*')                      │                 │
-│    │     ├─ subscribeForeignStates(houseId), (wallboxId)      │                 │
-│    │     ├─ this.on('stateChange', onStateChange)             │                 │
-│    │     └─ INITIAL CONFIG (in order):                        │                 │
-│    │          0xE000=0, 0xE004=4, 0xE00A=defaultFallbackMode, │                 │
-│    │          0xE00D=4, 0xE00B=commandTimeout, 0xE010=limit   │                 │
-│    └─ setInterval(pollOnce, pollInterval*1000)                │                 │
-│                                                               ▼                 │
-│  onStateChange(id, state)                              ControlWriter (FC06/FC16)│
-│    ├─ if !state || state.ack → ignore  (deletion / adapter-originated)          │
-│    ├─ foreign source id → recompute limit → maybe write 0xE010                  │
-│    ├─ expert control id  → write via ControlWriter (write-only-if-changed 0xE010)│
-│    ├─ on success → setControlAck(name, val)                                     │
-│    └─ on failure → log + retain prior acked value  (Modbus exception non-fatal) │
-│                                                                                 │
-│  pollOnce()  (existing reads unchanged)                                         │
-│    └─ heartbeat tail (inside existing try, only while controlActive):           │
-│         0xE00B=commandTimeout (FC16 uint32le, unconditional) ← keep-alive       │
-│         0xE00D=4 (FC06, unconditional)                       ← keep-alive       │
-│         0xE010=computedLimit (FC16 float32le, write-only-if-changed)            │
-│                                                                                 │
-│  onUnload()  → clear timer, close socket, NO control write                      │
-└───────────────────────────────────────────────────────────────────────────────┘
-        │ reads (FC03/FC04)          │ writes (FC06/FC16)          ▲ foreign states
-        ▼                            ▼                             │ house / wallbox (W)
-┌──────────────────────────────────┐  ┌────────────────────────┐  ┌──────────────────────┐
-│ ModbusClient (modbus-client.ts)  │  │ control-registers.ts   │  │ ConsumptionTracker    │
-│  read: FC03 / FC04 (unchanged)   │  │  0xE000 0xE004 0xE00A   │  │  last house/wallbox   │
-│  write: writeSingleRegister FC06 │  │  0xE00B 0xE00D 0xE00E   │  │  validity + compute   │
-│         writeMultipleRegisters   │  │  0xE010 findControlDef  │  │  min(max(h-w,0),max)  │
-│         FC16                     │  └────────────────────────┘  └──────────────────────┘
-└──────────────────────────────────┘        │ le words (float32le / uint32le)
-                                             ▼
-                          sunspec-decode.ts: encodeFloat32le / encodeUint32le
-                                   (exact inverses of the *le decoders)
+│                                                                                   │
+│  onReady()                                                                       │
+│    ├─ validateConfig(config)              (unchanged: host/port/unitId/pollInterval)│
+│    ├─ build ModbusClient / StateManager / SunSpecReader                          │
+│    ├─ stateManager.ensureStorEdgeControlBlock()   ← UNCONDITIONAL, every start   │
+│    ├─ subscribeStates('StorEdgeControlBlock.*')   ← UNCONDITIONAL, every start   │
+│    ├─ this.on('stateChange', onStateChange)       ← registered in constructor    │
+│    ├─ pollOnce()                          (connects the client on demand)        │
+│    └─ setInterval(pollOnce, pollInterval*1000)                                   │
+│                                                                                   │
+│  onStateChange(id, state)                                                        │
+│    ├─ if !state → ignore (deletion)                                              │
+│    ├─ if state.ack → ignore (adapter-originated readback)                        │
+│    ├─ leaf not under 'StorEdgeControlBlock.' → ignore (not this feature)          │
+│    ├─ no matching register def → ignore (unknown leaf)                           │
+│    ├─ Range_Validation against def.min/def.max                                   │
+│    │     invalid → log error, do NOT write, do NOT ack (retain previous)         │
+│    │     valid   → write via FC06 (uint16) or FC16 (float32le/uint32le)          │
+│    ├─ on success → ack with the written value                                    │
+│    └─ on failure (disconnected/timeout/exception) → log, retain, non-fatal       │
+│                                                                                   │
+│  pollOnce()  (existing inverter/meter/battery reads unchanged)                    │
+│    └─ StorEdgeControlBlock read tail (inside the existing try, every cycle):     │
+│         read span 0xE004..0xE00C (9 words) + span 0xE00D..0xE011 (5 words)       │
+│         decode each of the 9 defs by kind/wordOrder                              │
+│         writeValue-style ack each state with the live value (ack=true)           │
+│                                                                                   │
+│  onUnload()  → clear timer, close socket (unchanged, no control write)           │
+└─────────────────────────────────────────────────────────────────────────────────┘
+        │ reads (FC03/FC04, unchanged)      │ writes (FC06/FC16, unconditional)
+        ▼                                    ▼
+┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ ModbusClient (modbus-client.ts)  │   │ storedge-control-map.ts (NEW, sibling │
+│  read: FC03 / FC04 (unchanged)   │   │ of sunspec-map.ts — never polled via  │
+│  write: writeSingleRegister FC06 │   │ the SunSpec read model)               │
+│         writeMultipleRegisters   │   │  0xE004 0xE005 0xE006 0xE008 0xE00A   │
+│         FC16                     │   │  0xE00B 0xE00D 0xE00E 0xE010          │
+└──────────────────────────────────┘   │  findStorEdgeControlDef()             │
+              │ le words               └──────────────────────────────────────┘
+              ▼
+   sunspec-decode.ts: decodeRegisters(..., 'float32le'|'uint32le'|'uint16')
+                       encodeFloat32le / encodeUint32le   (reused, unchanged)
 ```
 
-### Control flow / state machine
+### Control flow
 
-The runtime adds one boolean **`controlActive`** on the adapter instance (mirrors `config.controlEnabled` after the `onReady` gate) plus a small value cache (last house, last wallbox, last-written `0xE010`). There is **no** timer and **no** separate scheduler — the existing poll loop *is* the heartbeat.
+There is no state machine and no enable/disable transition. The channel is either being read (every poll cycle) or being written (on a non-acked state change); both paths are always active from the moment `onReady` completes.
 
 ```
-                     controlEnabled === false                 controlEnabled === true
-                    ┌───────────────────────┐              ┌───────────────────────────────┐
-   onReady gate ───▶│      READ_ONLY        │              │        CONTROL_ACTIVE           │
-                    │  no writes            │  INITIAL     │  subscriptions live             │
-                    │  no subscriptions     │  CONFIG      │  heartbeat each poll            │
-                    │  no heartbeat         │  (in order): │  source-change recompute        │
-                    │  FC03/FC04 unchanged  │  0xE000=0    │                                 │
-                    └───────────────────────┘  0xE004=4    └─────────────────────────────────┘
-                                              0xE00A=fallbackMode
-                                   ───────▶   0xE00D=4      ───────▶
-                                              0xE00B=commandTimeout (uint32le, FC16)
-                                              0xE010=limit
-                                              ◀───────────
-                                       disable transition (controlEnabled flips false,
-                                       re-evaluated on config change / onReady):
-                                         write 0xE004 = defaultStorageControlMode (FC06)
-                                         unsubscribe both sources + control.*
-                                         stop heartbeat (controlActive=false)
+onReady (every adapter start, unconditionally):
+  ensureStorEdgeControlBlock()          // channel + 9 states, read=true write=true
+  subscribeStates('StorEdgeControlBlock.*')
+  (stateChange handler already registered in the constructor)
 
-   Each pollOnce cycle, AFTER the normal reads, INSIDE the existing try (HEARTBEAT):
-     if (controlActive):
-       write 0xE00B = commandTimeout (FC16 uint32le)  ← renew UNCONDITIONALLY every cycle
-       write 0xE00D = 4              (FC06)           ← re-assert UNCONDITIONALLY every cycle
-       if (computedLimit !== lastWritten0xE010):
-         write 0xE010 = computedLimit (FC16 float32le)← refresh only when changed
-         lastWritten0xE010 = computedLimit
-     // NOT written during heartbeat: 0xE000, 0xE004, 0xE00A
+Each pollOnce cycle, AFTER the existing inverter/meter/battery reads, INSIDE the existing try:
+  words1 = readHoldingRegisters(0xE004, 9)   // covers 0xE004..0xE00C (through the 2nd word of 0xE00B's uint32)
+  words2 = readHoldingRegisters(0xE00D, 5)   // covers 0xE00D..0xE011 (through the 2nd word of 0xE010's float32)
+  for each of the 9 defs:
+    decode from the appropriate span using def.kind/def.wordOrder
+    writeValue-style ack the state: { val: decoded, ack: true }
+  // a read failure here follows the NORMAL cycle-failure path (info.connection=false,
+  // close socket, reconnect next cycle) — no special-casing (Req 5.4)
 
-   On a foreign source change (house or wallbox), or each poll:
-     recompute limit = min(max(house - wallbox, 0), maxDischargeLimit)
-     invalid source (missing / non-numeric / ts older than sourceMaxAgeSeconds) ⇒ limit = 0
-     apply write-only-if-changed to 0xE010
+On a state change under 'StorEdgeControlBlock.<leaf>':
+  if !state → return                          // deletion
+  if state.ack → return                        // adapter's own read-back ack
+  def = findStorEdgeControlDef(leaf)
+  if !def → return                              // unknown leaf, ignore
+  if value < def.min || value > def.max:
+    log.error(...); return                      // reject pre-write, retain previous, no ack
+  write via FC06 (uint16) or FC16 (float32le/uint32le encoding), EVERY time (Req 7.2)
+  on success → ack with the written value
+  on failure (disconnected / timeout / Modbus exception) → log.error(...); retain; non-fatal
 ```
-
-The precise distinction the requirements demand: the initial-config registers `0xE000`, `0xE004`, and `0xE00A` are written **once** on enable and are **not** re-asserted every cycle (Req 11.4, 12.4, 12.5). The heartbeat instead **renews `0xE00B` unconditionally** (the manufacturer keep-alive, Req 10.2/11.1) and **re-writes `0xE00D`=4 unconditionally** (Req 11.2), while **`0xE010` is skipped when unchanged** (Req 8.2, 11.3). A heartbeat write that throws is caught by the *existing* cycle-failure path (`info.connection=false`, close socket, reconnect next cycle); it never terminates the adapter (Req 11.6).
-
-Because `controlEnabled` is a config value, not a state, there is no `disableDischarge` boolean switch in the object tree. The enable/disable transition is driven by the `onReady` gate (and re-evaluated when the instance config changes, which restarts the adapter). A read-only status state (`control.controlActive`) may be exposed purely to reflect whether control is currently active — it is never used to trigger writes.
 
 ## Components and Interfaces
 
-### 1. Modbus client — add write function codes (`src/lib/modbus-client.ts`)
+### 1. Register definitions — new module (`src/lib/storedge-control-map.ts`)
 
-Two write methods join `IModbusClient`/`ModbusClient`, reusing the **exact** timeout mechanism as reads: guard `!isConnected()` first, then `this.client.setTimeout(timeoutMs)` and race the library call against `rejectAfter(timeoutMs, …)` with `DEFAULT_TIMEOUT_MS` (10 s), cancelling the timer in `finally`. A shared private `write(fn, address, payload, opts)` mirrors the existing shared `read()` helper.
-
-```ts
-export interface ModbusWriteOptions {
-    timeoutMs?: number; // defaults to DEFAULT_TIMEOUT_MS
-}
-
-export interface IModbusClient {
-    // ... existing read methods unchanged (connect / readHoldingRegisters / readInputRegisters / isConnected / close) ...
-    /** FC06 — write one uint16 to a holding register. Rejects when not connected. */
-    writeSingleRegister(address: number, value: number, opts?: ModbusWriteOptions): Promise<void>;
-    /** FC16 — write a uint16 word array to consecutive holding registers. Rejects when not connected. */
-    writeMultipleRegisters(address: number, values: number[], opts?: ModbusWriteOptions): Promise<void>;
-}
-```
-
-Implementation notes:
-
-- `writeSingleRegister` validates `value` is an integer in `[0, 0xFFFF]` and forwards to the library `writeRegister(address, value)` (FC06).
-- `writeMultipleRegisters` validates a non-empty word array (each `0..0xFFFF`) and forwards to the library `writeRegisters(address, values)` (FC16). Both float32 → two-word (`0xE010`/`0xE00E`) and uint32 → two-word (`0xE00B`) encoding is done by the caller (`ControlWriter`), keeping the client type-agnostic like its read side.
-- Both reject with `Modbus client is not connected` when `!this.isConnected()` before issuing any library call, then apply the timeout race exactly as `read()` does.
-
-**Revised read-only invariant.** The module header comment and `IModbusClient` doc are updated: the client is no longer *strictly* read-only. Its write surface is **restricted to exactly** FC06 single-register and FC16 multiple-register operations; the adapter targets those only at the StorEdge control registers `0xE000`, `0xE004`, `0xE00A`, `0xE00B`, `0xE00D`, `0xE010`, and (expert-optional) `0xE00E`. No coil write (FC05/FC15) or any other write function code is exposed. FC03/FC04 read behavior is unchanged (Req 2.8, 3.1, 3.2, 3.3, 3.4).
-
-> The existing property test in `src/lib/modbus-client.test.ts` (**Property 4: read-only invariant**, which asserts `FORBIDDEN_WRITE_METHODS` includes `writeSingleRegister`/`writeMultipleRegisters`/`writeRegister`/`writeRegisters`) **must be revised**: move those four out of `FORBIDDEN_WRITE_METHODS` into the *allowed* write surface; keep all coil methods (`writeCoil`/`writeCoils`/FC05/FC15) forbidden; keep the "reads never issue a write" arm (over any sequence of reader ops only FC03/FC04 are issued).
-
-### 2. Control-register definitions — new module (`src/lib/control-registers.ts`)
-
-A separate definition set, distinct from `SUNSPEC_MAP`/`BATTERY_MAP`, describing the StorEdge Power Control registers in the `0xExxx` range. These are **not** polled by the read loop and never appear in the SunSpec value table (Req 4.8).
+A flat, static definition list for the nine registers, deliberately a **sibling** of `sunspec-map.ts` — never an entry in `SUNSPEC_MAP`/`BATTERY_MAP`, never polled via the SunSpec model, never mixed with inverter/meter/battery defs (Req 3.10, 8.4).
 
 ```ts
-export type ControlRegisterKind = 'uint16' | 'float32' | 'uint32';
-export type ControlWordOrder = 'le'; // little-endian word order for multiword regs (matches float32le/uint32le)
+// StorEdge Global StorEdge Control Block register definitions.
+//
+// Pure, static data describing the nine manufacturer-documented registers at base
+// address 0xE004 (mirrored at 0xF704). This module is a SIBLING of sunspec-map.ts:
+// it is never polled via the SunSpec read model and never appears in SUNSPEC_MAP /
+// BATTERY_MAP. Multi-word registers use little-endian word order (low word first,
+// bytes big-endian within each word) — the same float32le/uint32le convention
+// already implemented in sunspec-decode.ts for the 0xE1xx battery block.
+//
+// Requirements: 2.3, 2.4, 3.1-3.10, 4.1-4.5
 
-export interface ControlRegisterDef {
-    /** Stable key used as the control-state id leaf, e.g. 'storageControlMode'. */
+export type StorEdgeControlKind = 'uint16' | 'float32' | 'uint32';
+export type StorEdgeWordOrder = 'le'; // little-endian word order for multiword regs
+
+/**
+ * Conservative upper bound for Battery_Max_Power (W), used as the Documented_Range
+ * maximum for Remote_Control_Charge_Limit (0xE00E) and Remote_Control_Discharge_Limit
+ * (0xE010). See "On the two manufacturer-symbolic upper bounds" below for rationale.
+ */
+export const BATTERY_MAX_POWER_W = 10000;
+
+export interface StorEdgeControlRegisterDef {
+    /** Stable key used as the StorEdgeControlBlock state id leaf, e.g. 'storageControlMode'. */
     name: string;
     /** Absolute base-0 Modbus register address (0xExxx range). */
     address: number;
     /** Value encoding on the wire. */
-    kind: ControlRegisterKind;
+    kind: StorEdgeControlKind;
     /** Number of 16-bit registers (1 for uint16, 2 for float32/uint32). */
     length: number;
-    /** Word order for multiword registers; single-word regs ignore this. */
-    wordOrder?: ControlWordOrder; // 'le' for float32/uint32 (Req 5.1)
-    /** ioBroker common.type for the backing state. */
+    /** Word order for multiword registers; single-word regs omit this. */
+    wordOrder?: StorEdgeWordOrder;
+    /** ioBroker `common.type` for the backing state. */
     iobType: 'number';
-    /** Physical unit for common.unit, if any. */
+    /** Physical unit for `common.unit`, if any. */
     unit?: string;
-    /** Inclusive value range for validation / documentation. */
+    /** Inclusive minimum of the manufacturer's Documented_Range. */
     min: number;
+    /** Inclusive maximum of the manufacturer's Documented_Range. */
     max: number;
-    /** Write function code the adapter uses (FC06 uint16, FC16 multiword). Absent = read-only. */
-    fc?: 'FC06' | 'FC16';
-    /** True when the backing expert state is read-only (reflects a value, never user-writable). */
-    readOnly?: boolean;
+    /** Write function code: FC06 for uint16, FC16 for the multiword registers. */
+    fc: 'FC06' | 'FC16';
 }
 
-export const EXPORT_CONFIG: ControlRegisterDef = {                 // Req 4.1 — written once (=0) on enable
-    name: 'exportConfig', address: 0xe000, kind: 'uint16', length: 1, iobType: 'number', min: 0, max: 0xffff, fc: 'FC06',
+export const STORAGE_CONTROL_MODE: StorEdgeControlRegisterDef = {
+    name: 'storageControlMode', address: 0xe004, kind: 'uint16', length: 1,
+    iobType: 'number', min: 0, max: 4, fc: 'FC06',
 };
-export const STORAGE_CONTROL_MODE: ControlRegisterDef = {          // Req 4.2 — enable (=4) + disable-revert only
-    name: 'storageControlMode', address: 0xe004, kind: 'uint16', length: 1, iobType: 'number', min: 0, max: 4, fc: 'FC06',
+export const STORAGE_AC_CHARGE_POLICY: StorEdgeControlRegisterDef = {
+    name: 'storageAcChargePolicy', address: 0xe005, kind: 'uint16', length: 1,
+    iobType: 'number', min: 0, max: 3, fc: 'FC06',
 };
-export const STORAGE_DEFAULT_MODE: ControlRegisterDef = {          // Req 4.3 — written once on enable (=fallback)
-    name: 'storageDefaultMode', address: 0xe00a, kind: 'uint16', length: 1, iobType: 'number', min: 0, max: 7, fc: 'FC06',
+export const STORAGE_AC_CHARGE_LIMIT: StorEdgeControlRegisterDef = {
+    name: 'storageAcChargeLimit', address: 0xe006, kind: 'float32', length: 2, wordOrder: 'le',
+    iobType: 'number', unit: 'kWh', min: 0, max: Number.MAX_VALUE, fc: 'FC16',
 };
-export const REMOTE_CONTROL_COMMAND_TIMEOUT: ControlRegisterDef = {// Req 4.4 — enable + renewed each cycle (uint32le, FC16)
-    name: 'remoteControlCommandTimeout', address: 0xe00b, kind: 'uint32', length: 2, wordOrder: 'le', iobType: 'number', unit: 's', min: 0, max: 86400, fc: 'FC16',
+export const STORAGE_BACKUP_RESERVED_SETTING: StorEdgeControlRegisterDef = {
+    name: 'storageBackupReservedSetting', address: 0xe008, kind: 'float32', length: 2, wordOrder: 'le',
+    iobType: 'number', unit: '%', min: 0, max: 100, fc: 'FC16',
 };
-export const REMOTE_CONTROL_COMMAND_MODE: ControlRegisterDef = {   // Req 4.5 — enable + each cycle (=4)
-    name: 'remoteControlCommandMode', address: 0xe00d, kind: 'uint16', length: 1, iobType: 'number', min: 0, max: 7, fc: 'FC06',
+export const STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE: StorEdgeControlRegisterDef = {
+    name: 'storageChargeDischargeDefaultMode', address: 0xe00a, kind: 'uint16', length: 1,
+    iobType: 'number', min: 0, max: 7, fc: 'FC06',
 };
-export const REMOTE_CONTROL_CHARGE_LIMIT: ControlRegisterDef = {   // Req 4.6 — expert-only, optional
-    name: 'remoteControlChargeLimit', address: 0xe00e, kind: 'float32', length: 2, wordOrder: 'le', iobType: 'number', unit: 'W', min: 0, max: Number.MAX_VALUE, fc: 'FC16',
+export const REMOTE_CONTROL_COMMAND_TIMEOUT: StorEdgeControlRegisterDef = {
+    name: 'remoteControlCommandTimeout', address: 0xe00b, kind: 'uint32', length: 2, wordOrder: 'le',
+    iobType: 'number', unit: 's', min: 0, max: 86400, fc: 'FC16',
 };
-export const REMOTE_CONTROL_DISCHARGE_LIMIT: ControlRegisterDef = {// Req 4.7 — enable + each cycle write-only-if-changed
-    name: 'remoteControlDischargeLimit', address: 0xe010, kind: 'float32', length: 2, wordOrder: 'le', iobType: 'number', unit: 'W', min: 0, max: Number.MAX_VALUE, fc: 'FC16',
+export const REMOTE_CONTROL_COMMAND_MODE: StorEdgeControlRegisterDef = {
+    name: 'remoteControlCommandMode', address: 0xe00d, kind: 'uint16', length: 1,
+    iobType: 'number', min: 0, max: 7, fc: 'FC06',
+};
+export const REMOTE_CONTROL_CHARGE_LIMIT: StorEdgeControlRegisterDef = {
+    name: 'remoteControlChargeLimit', address: 0xe00e, kind: 'float32', length: 2, wordOrder: 'le',
+    iobType: 'number', unit: 'W', min: 0, max: BATTERY_MAX_POWER_W, fc: 'FC16',
+};
+export const REMOTE_CONTROL_DISCHARGE_LIMIT: StorEdgeControlRegisterDef = {
+    name: 'remoteControlDischargeLimit', address: 0xe010, kind: 'float32', length: 2, wordOrder: 'le',
+    iobType: 'number', unit: 'W', min: 0, max: BATTERY_MAX_POWER_W, fc: 'FC16',
 };
 
-export const CONTROL_REGISTERS: readonly ControlRegisterDef[] = [
-    EXPORT_CONFIG, STORAGE_CONTROL_MODE, STORAGE_DEFAULT_MODE, REMOTE_CONTROL_COMMAND_TIMEOUT,
-    REMOTE_CONTROL_COMMAND_MODE, REMOTE_CONTROL_CHARGE_LIMIT, REMOTE_CONTROL_DISCHARGE_LIMIT,
+export const STOREDGE_CONTROL_REGISTERS: readonly StorEdgeControlRegisterDef[] = [
+    STORAGE_CONTROL_MODE, STORAGE_AC_CHARGE_POLICY, STORAGE_AC_CHARGE_LIMIT,
+    STORAGE_BACKUP_RESERVED_SETTING, STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE,
+    REMOTE_CONTROL_COMMAND_TIMEOUT, REMOTE_CONTROL_COMMAND_MODE,
+    REMOTE_CONTROL_CHARGE_LIMIT, REMOTE_CONTROL_DISCHARGE_LIMIT,
 ];
 
-/** Resolve the control def for a given control-state id leaf, or undefined. */
-export function findControlDef(name: string): ControlRegisterDef | undefined;
-```
-
-Every def now carries an `fc`: FC06 for the uint16 registers (`0xE000`, `0xE004`, `0xE00A`, `0xE00D`) and FC16 for the multiword registers (`0xE00B` uint32le, `0xE010`/`0xE00E` float32le), matching the writes each register receives (Req 4.1–4.7, 3.4). `0xE00B` (`remoteControlCommandTimeout`) is now **written** (FC16, `wordOrder:'le'`) — it is set on enable and renewed each cycle — so it no longer carries `readOnly`; the def's `readOnly` flag now only governs whether the backing *expert state* accepts user writes (the timeout expert state stays read-only, reflecting the renewed value, Req 13.2). `0xE00A` (`storageDefaultMode`) is likewise now writable (once, on enable) and no longer `readOnly`. For multiword registers `wordOrder: 'le'` selects `encodeFloat32le` (float32) or `encodeUint32le` (uint32) in the writer.
-
-### 3. Little-endian multiword encoding (`src/lib/sunspec-decode.ts`)
-
-The discharge limit is a float32 and the command timeout is a uint32, both written via FC16 in little-endian word order. Two encoders are colocated with their decoders so each round-trip is provable.
-
-**float32** — `decodeRegisters(words, 'float32le')` reads **words[1] as high, words[0] as low** (bytes big-endian within each word). `encodeFloat32le` is its exact inverse (already present):
-
-```ts
-/**
- * Encode a float32 into two 16-bit words in LITTLE-ENDIAN WORD ORDER — the exact
- * inverse of decodeRegisters(words, 'float32le'). The low word is words[0] and the
- * high word is words[1]; bytes within each word are big-endian.
- * Verified: encodeFloat32le(5000) === [0x4000, 0x459c].  (Req 5.1, 5.2, 5.3)
- */
-export function encodeFloat32le(value: number): [number, number] {
-    const buf = Buffer.allocUnsafe(4);
-    buf.writeFloatBE(value, 0);
-    const high = buf.readUInt16BE(0); // most-significant 16 bits
-    const low = buf.readUInt16BE(2);  // least-significant 16 bits
-    return [low, high]; // words[0]=low, words[1]=high (little-endian WORD order)
+/** Resolve the register def for a StorEdgeControlBlock state-id leaf, or undefined. */
+export function findStorEdgeControlDef(name: string): StorEdgeControlRegisterDef | undefined {
+    return STOREDGE_CONTROL_REGISTERS.find(def => def.name === name);
 }
 ```
 
-**uint32** (NEW) — `decodeRegisters(words, 'uint32le')` returns `toUint32(words[1], words[0])`, i.e. **words[0] is the low word, words[1] the high word**. `encodeUint32le` is its exact inverse, low word first:
+**On the two "manufacturer-symbolic" upper bounds.** The manufacturer table specifies two registers' maximum as a named quantity rather than a fixed number:
 
-```ts
-/**
- * Encode an unsigned 32-bit integer into two 16-bit words in LITTLE-ENDIAN WORD
- * ORDER — the exact inverse of decodeRegisters(words, 'uint32le'). words[0] is the
- * low 16 bits, words[1] the high 16 bits. Used for the command timeout 0xE00B.
- * (Req 4.4, 5.1)
- */
-export function encodeUint32le(value: number): [number, number] {
-    const v = value >>> 0;                 // coerce into unsigned 32-bit
-    const low = v & 0xffff;                // least-significant 16 bits
-    const high = (v >>> 16) & 0xffff;      // most-significant 16 bits
-    return [low, high]; // words[0]=low, words[1]=high (little-endian WORD order)
-}
-```
+- `Storage_AC_Charge_Limit` (`0xE006`) uses **Max_Float** as its upper bound. This is genuinely "the largest representable float32", so `max: Number.MAX_VALUE` is the correct, literal encoding — there is no narrower manufacturer-given number to substitute, and any finite value the user could plausibly write is far below it. Range validation against `Number.MAX_VALUE` still catches negative values (the documented minimum is 0) and non-finite input, which is the validation that actually matters for this register.
+- `Remote_Control_Charge_Limit` (`0xE00E`) and `Remote_Control_Discharge_Limit` (`0xE010`) use **Battery_Max_Power** as their upper bound — an inverter-model-specific wattage the adapter has no reliable runtime source for (it is not itself a SunSpec register this adapter reads, and differs per battery model/count). Rather than silently falling back to `Number.MAX_VALUE` (which would make range validation on these two registers a no-op beyond rejecting negatives, defeating Requirement 6's intent), the design introduces one named constant, `BATTERY_MAX_POWER_W = 10000` (declared above, alongside the def table it feeds). SolarEdge StorEdge battery packs (LG/BYD/Panasonic modules supported by SolarEdge inverters) top out around 5000 W per battery; 10 kW is intentionally generous enough to accommodate multi-battery installations (`battery.1` + `battery.2`, matching the existing `BATTERY_REGISTER_OFFSETS` support for up to two slots) without under-rejecting a legitimate two-battery configuration, while still catching obviously invalid input (e.g. a stray six-figure watt value from a unit-conversion bug).
 
-The old MSW-first `encodeFloat32` (which returned `[high, low]`) is **wrong for this inverter and must not be used**. `ControlWriter` selects `encodeFloat32le` for any `float32` def with `wordOrder:'le'` (`0xE010`/`0xE00E`) and `encodeUint32le` for the `uint32` def with `wordOrder:'le'` (`0xE00B`).
+  This is a documented, named, adjustable constant rather than a magic number or an unbounded escape hatch — it keeps range validation meaningful for the two registers where it matters most operationally (charge/discharge power limits) while avoiding a false rejection of valid multi-battery installations. If a future installation exceeds this, the constant is the single place to widen it.
 
-### 4. State manager — control states (`src/lib/state-manager.ts`)
+### 2. Reused encoding (`src/lib/sunspec-decode.ts`) — no changes
 
-A new concept is added alongside the SunSpec state creation, deliberately **outside** the register-map-driven read model (Req 13.6). The existing `ensureChannel`/`ensureState`/`writeValue` (SunSpec, `write=false`) are untouched.
+`decodeRegisters(words, 'float32le' | 'uint32le' | 'uint16')` and `encodeFloat32le`/`encodeUint32le` already exist and are exercised by the `0xE1xx` battery block today. This feature reuses them verbatim for both the poll-read decode path and the write-dispatch encode path — no new encode/decode logic is written. `uint16` registers need no multiword encoding at all: the raw integer is passed straight to `writeSingleRegister`.
+
+### 3. State manager — `ensureStorEdgeControlBlock()` (`src/lib/state-manager.ts`)
+
+The old `ensureControlStates`/`setControlAck` pair (built for the deleted consumption-based design's `control` channel) is **removed**. In its place, a simpler, register-map-driven-but-separate helper creates the `StorEdgeControlBlock` channel and its nine states, all `read=true, write=true`, idempotently, following the exact same `setObjectNotExistsAsync` + in-memory `Set` idempotency pattern already used for `ensureChannel`/`ensureState` (Req 8.2).
 
 ```ts
 export interface IStateManager {
-    // ... existing methods unchanged ...
-    /** Create the `control` channel and all control states (idempotent). Only called when controlEnabled. */
-    ensureControlStates(): Promise<void>;
-    /** Write an acknowledged value to a control state (val + ack=true). */
-    setControlAck(name: string, value: number): Promise<void>;
+    // ... existing SunSpec methods unchanged: ensureChannel / ensureState / writeValue ...
+
+    /** Create the StorEdgeControlBlock channel and its nine states (idempotent, unconditional). */
+    ensureStorEdgeControlBlock(): Promise<void>;
+    /** Write a live-read value to a StorEdgeControlBlock state with ack=true (poll-read path). */
+    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
+    /** Acknowledge a successful user-driven write with the written value (write-dispatch path). */
+    ackStorEdgeWrite(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
 }
 ```
 
-`ensureControlStates()` creates the `control` channel and, for each control def, a state. Writable expert raw registers get **`read=true, write=true`**; the timeout register is **read-only** (`read=true, write=false`) and reflects the value the heartbeat renews each cycle; a read-only status reflection exposes whether control is active. All are grouped/marked as expert/advanced (Req 13.3) via a dedicated `control` channel plus `common.expert = true` (advanced/expert grouping in ioBroker admin).
+`ensureStorEdgeControlBlock()` creates a plain (non-expert) `StorEdgeControlBlock` channel — **not** flagged `common.expert = true` — because, per the requirements, this is now the primary, intended way to reach these registers (no other UI is provided; there is no consumption-based automation hidden behind it any more). This mirrors the existing plain `inverter`/`meter.<n>`/`battery.<n>` channel pattern rather than the old design's expert-gated `control` channel. For each of the nine defs it creates a state with:
 
-| State id                                | type    | role             | unit | read | write | notes                                  |
-| --------------------------------------- | ------- | ---------------- | ---- | ---- | ----- | -------------------------------------- |
-| `control.storageControlMode`            | number  | `level.mode`     | —    | true | true  | expert raw `0xE004` (Req 13.1)         |
-| `control.remoteControlCommandMode`      | number  | `level.mode`     | —    | true | true  | expert raw `0xE00D` (Req 13.1)         |
-| `control.remoteControlDischargeLimit`   | number  | `value.power`    | W    | true | true  | expert raw `0xE010` (Req 13.1)         |
-| `control.remoteControlCommandTimeout`   | number  | `value.interval` | s    | true | false | read-only; reflects renewed `0xE00B` (Req 13.2) |
-| `control.computedDischargeLimit`        | number  | `value.power`    | W    | true | false | normal-surface reflection of the limit |
-| `control.controlActive`                 | boolean | `indicator`      | —    | true | false | status: control currently active       |
+- `common.type = 'number'`
+- `common.role` — `'level.mode'` for the two mode-selector registers (`storageControlMode`, `storageChargeDischargeDefaultMode`), `'switch.mode'` is avoided (not a boolean); `'level.mode'` also used for `storageAcChargePolicy` and `remoteControlCommandMode`; power/energy/percent/time registers get `'value.power'`, `'value.energy'`, `'value.fill'`, `'value.interval'` respectively — the same `ROLE_MAP`-style convention already used for SunSpec states.
+- `common.unit` set from `def.unit` when present, omitted otherwise (same convention as `ensureState`).
+- `common.read = true`, `common.write = true` — **every one of the nine, no exceptions** (Req 9.1).
+- `common.min`/`common.max` set from `def.min`/`def.max` so the admin object tree itself documents the accepted range (a natural extension of exposing `min`/`max` on the def; purely descriptive, the adapter still performs its own validation before writing).
 
-The `0xE00B` expert state stays `write=false` even though the register is now written by the adapter: users never set the timeout directly; the state simply reflects the renewed `commandTimeout` value the heartbeat sends. There is no other structural change to the control-state table (Req 13.2).
+Both `writeStorEdgeValue` (poll-read path) and `ackStorEdgeWrite` (write-dispatch success path) write `{ val: value, ack: true }` to `StorEdgeControlBlock.<def.name>`; they are two thin, identically-shaped helpers (or one shared private helper with two public names) kept distinct only so call sites at the two call sites read clearly — both are trivial wrappers around the existing `setStateAsync` pattern used by `writeValue`/the old `setControlAck`. Because these nine states are the only ones created with `write: true`, a test asserts no other state (SunSpec-derived or otherwise) is ever created with `write: true` (Req 9.2, 9.3).
 
-`setControlAck(name, value)` writes `{ val, ack: true }` to `control.<name>`. Because these states are created explicitly (not from the register map), they are the only `write=true` states in the adapter; a test asserts no control state is produced from `SUNSPEC_MAP`/`BATTERY_MAP` (Req 13.6).
+### 4. main.ts — unconditional wiring
 
-### 5. Consumption tracker + compute helper (`src/lib/consumption.ts`, pure)
-
-A pure helper module holding the validity predicate and the clamped-limit computation so both are unit- and property-testable without ioBroker.
+**`onReady` changes.** The `controlEnabled` gate is deleted entirely — there is no config check of any kind for this feature. Unconditionally, on every adapter start, immediately after the existing `ensureChannel('inverter')`:
 
 ```ts
-export interface SourceSample {
-    /** Raw state value as received (may be non-numeric or undefined). */
-    val: unknown;
-    /** State timestamp (ms since epoch), as ioBroker provides on state.ts. */
-    ts: number;
-}
-
-/** A source is valid iff present, numeric (finite), and not older than maxAgeSeconds. (Req 6.2-6.4) */
-export function isSourceValid(sample: SourceSample | undefined, nowMs: number, maxAgeSeconds: number): boolean;
-
-/**
- * Computed discharge limit in watts.
- *  - both valid   → min(max(house - wallbox, 0), maxDischargeLimit)   (Req 7.1-7.3)
- *  - either invalid → 0                                               (Req 7.4)
- */
-export function computeDischargeLimit(
-    house: SourceSample | undefined,
-    wallbox: SourceSample | undefined,
-    nowMs: number,
-    maxAgeSeconds: number,
-    maxDischargeLimit: number,
-): number;
+await this.stateManager.ensureStorEdgeControlBlock();
+this.subscribeStates('StorEdgeControlBlock.*');
 ```
 
-`isSourceValid` returns false when the sample is missing, when `Number(val)` is not finite, or when `nowMs - ts > maxAgeSeconds * 1000`. `computeDischargeLimit` first checks both sources with `isSourceValid`; if either is invalid it returns `0`; otherwise it clamps `house - wallbox` to `[0, maxDischargeLimit]`.
+The `stateChange` handler registration (`this.on('stateChange', this.onStateChange.bind(this))`) stays in the constructor as it already is — it is simply no longer a no-op, since `StorEdgeControlBlock.*` is now always subscribed. No other part of `onReady` changes: config validation, client/reader/state-manager construction, the first `pollOnce()`, and the repeating `setInterval` are all unchanged.
 
-The adapter instance holds the **value cache**: the last received house `SourceSample`, the last received wallbox `SourceSample`, and `lastWritten0xE010` (number | undefined). On any source change or each poll, the adapter recomputes the limit from the cache and applies write-only-if-changed.
-
-### 6. Control writer — dispatch layer (`src/lib/control-writer.ts`)
-
-A thin dispatcher mapping a control-register write to the correct Modbus call and encoding, extracted so dispatch/encoding are unit-testable without a live socket.
+**`pollOnce` changes.** After the existing inverter/meter/battery read blocks, inside the same `try` (so a read failure here follows the *normal* cycle-failure path — `info.connection=false`, close socket, reconnect next cycle — with no special-casing, Req 5.4):
 
 ```ts
-export interface EnableOptions {
-    /** Value written once to 0xE00A (fallback the inverter reverts to). */
-    defaultFallbackMode: number;
-    /** Value written to 0xE00B on enable and renewed each cycle, in seconds. */
-    commandTimeout: number;
-}
-
-export interface ControlWriter {
-    /**
-     * Write one control register by its def:
-     *   uint16 → writeSingleRegister (FC06);
-     *   float32 wordOrder 'le' → writeMultipleRegisters(address, encodeFloat32le(value)) (FC16);
-     *   uint32  wordOrder 'le' → writeMultipleRegisters(address, encodeUint32le(value))  (FC16).
-     * Refuses any def with no `fc`.
-     */
-    write(def: ControlRegisterDef, value: number): Promise<void>;
-    /**
-     * Initial configuration sequence, in documented order (Req 9):
-     *   0xE000=0, 0xE004=4, 0xE00A=opts.defaultFallbackMode, 0xE00D=4,
-     *   0xE00B=opts.commandTimeout (uint32le, FC16), 0xE010=computedLimit (float32le, FC16).
-     */
-    applyEnable(computedLimit: number, opts: EnableOptions): Promise<void>;
-    /** Disable/revert: 0xE004 = defaultStorageControlMode (FC06). (Req 12.1) */
-    applyRevert(defaultStorageControlMode: number): Promise<void>;
-    /**
-     * Heartbeat (Req 10.2, 11): renew 0xE00B=commandTimeout (uint32le, FC16) unconditionally,
-     * write 0xE00D=4 (FC06) unconditionally, write 0xE010 only if changed. Does NOT write
-     * 0xE000, 0xE004, or 0xE00A. Returns the new lastWritten for 0xE010.
-     */
-    heartbeat(computedLimit: number, lastWritten: number | undefined, commandTimeout: number): Promise<number | undefined>;
-}
-```
-
-`write` refuses any def without an `fc` (defensive). It selects encoding by `def.kind`: `uint16` → `writeSingleRegister(address, value)` (FC06); `float32` with `wordOrder:'le'` → `writeMultipleRegisters(address, encodeFloat32le(value))` (FC16); `uint32` with `wordOrder:'le'` → `writeMultipleRegisters(address, encodeUint32le(value))` (FC16) — this is the new branch for `0xE00B`. `applyEnable` performs the full six-write initial-config sequence **in order**, taking `defaultFallbackMode` and `commandTimeout` via the `EnableOptions` object. `heartbeat` renews `0xE00B` and re-writes `0xE00D` unconditionally, applies write-only-if-changed to `0xE010`, and returns the new `lastWritten0xE010` so the caller updates its cache (unchanged when the `0xE010` write was skipped).
-
-### 7. main.ts — subscription, dispatch, heartbeat, revert
-
-**`onReady` additions**, only when `config.controlEnabled` (the gate for *all* control wiring, Req 1.6):
-
-1. `await this.stateManager.ensureControlStates();`
-2. `this.subscribeStates('control.*');`
-3. `this.subscribeForeignStates(this.config.houseConsumptionStateId);` and the wallbox id (Req 6.1).
-4. Register the handler in the constructor: `this.on('stateChange', this.onStateChange.bind(this));`.
-5. Seed the value cache from `getForeignStateAsync` for both ids, compute the initial limit, then run the **initial-config sequence** `applyEnable(computedLimit, { defaultFallbackMode: config.defaultFallbackMode, commandTimeout: config.commandTimeout })` → `0xE000=0`, `0xE004=4`, `0xE00A=defaultFallbackMode`, `0xE00D=4`, `0xE00B=commandTimeout`, `0xE010=computed` (Req 9). Seed `lastWritten0xE010 = computedLimit` and set `controlActive = true`.
-
-**Ordering:** the control gate runs **after** the first `pollOnce()` in `onReady`, not before it. `pollOnce()` connects the Modbus client on demand (`if (!isConnected()) await connect(...)`), so running it first ensures the enable sequence writes to an already-connected client instead of failing with “Modbus client is not connected” on startup. That first cycle runs with `controlActive` still false, so its heartbeat tail is a no-op. If the first `pollOnce()` cannot connect (inverter briefly unreachable), the enable sequence is deferred non-fatally (logged at warn) and the per-cycle heartbeat runs the initial configuration once the connection is established (Req 9, 11.6, 14.2).
-
-When `config.controlEnabled` is false, none of the above runs: no `ensureControlStates`, no subscriptions, no handler effect, no initial-config sequence, no heartbeat (Req 1.2–1.5). Reads proceed unchanged.
-
-**`onStateChange(id, state)`**:
-
-```
-if (!state) return;                          // deletion — ignore (Req 13.5 boundary)
-if (state.ack) return;                        // adapter-originated ack — ignore (Req 13.5)
-if (id === houseId || id === wallboxId) {     // foreign source change
-    update value cache (val + ts);
-    const limit = computeDischargeLimit(house, wallbox, Date.now(), maxAge, maxDischargeLimit);
-    if (limit !== lastWritten0xE010) { await controlWriter.write(0xE010def, limit); lastWritten0xE010 = limit; }
-    return;
-}
-const leaf = id after last '.'                // expert control state
-const def = findControlDef(leaf);
-// Only the writable expert states 0xE004/0xE00D/0xE010 accept user changes (Req 13.1).
-// 0xE000/0xE00A/0xE00B are written by the adapter but have no writable expert state,
-// so a user change never resolves to them; guard defensively on the writable set.
-const WRITABLE_EXPERT = new Set([0xe004, 0xe00d, 0xe010]);
-if (!def || !def.fc || !WRITABLE_EXPERT.has(def.address)) return; // unknown / non-writable-state id → ignore
-try {
-    if (def.address === 0xE010) {             // honor write-only-if-changed for 0xE010 (Req 13.4)
-        if (Number(state.val) === lastWritten0xE010) { await setControlAck(leaf, state.val); return; }
-        await controlWriter.write(def, Number(state.val)); lastWritten0xE010 = Number(state.val);
-    } else {
-        await controlWriter.write(def, Number(state.val));
+// --- StorEdgeControlBlock read (Req 5.1-5.4) --------------------------------
+// Minimal round-trips: the nine registers span two contiguous windows —
+// 0xE004..0xE00C (9 words: Storage_Control_Mode, Storage_AC_Charge_Policy,
+// Storage_AC_Charge_Limit [2w], Storage_Backup_Reserved_Setting [2w],
+// Storage_Charge_Discharge_Default_Mode, Remote_Control_Command_Timeout [2w])
+// and 0xE00D..0xE011 (5 words: Remote_Control_Command_Mode,
+// Remote_Control_Charge_Limit [2w], Remote_Control_Discharge_Limit [2w]) — with
+// no gap between either span internally, but a register-map discontinuity is not
+// assumed between the two windows, so they are read as two requests, mirroring
+// the existing BATTERY_READ_SEGMENTS segmented-read pattern in sunspec-map.ts /
+// sunspec-reader.ts rather than nine individual reads.
+const blockWordsA = await client.readHoldingRegisters(0xe004, 9); // 0xE004..0xE00C
+const blockWordsB = await client.readHoldingRegisters(0xe00d, 5); // 0xE00D..0xE011
+for (const def of STOREDGE_CONTROL_REGISTERS) {
+    const words = wordsForDef(def, blockWordsA, blockWordsB); // slices the right window by address
+    const value = decodeRegisters(words, wireDatatype(def)); // 'uint16' | 'float32le' | 'uint32le'
+    if (value !== null) {
+        await stateManager.writeStorEdgeValue(def, value as number);
     }
-    await stateManager.setControlAck(leaf, Number(state.val));   // ack on success (Req 14.3)
-} catch (e) {
-    this.log.error(...);                       // log + retain prior acked value (Req 14.1); non-fatal (Req 14.2)
 }
 ```
 
-Because the ack write is `ack=true`, the re-entrant `onStateChange` for it is dropped by the guard, so no write loop occurs (Req 13.5).
+`wireDatatype(def)` maps `kind:'uint16'` → `'uint16'`, `kind:'float32'` (always `wordOrder:'le'` here) → `'float32le'`, `kind:'uint32'` → `'uint32le'` — i.e. it selects the exact `SunSpecDatatype` string `decodeRegisters` expects, reusing that function rather than duplicating decode logic. This runs **every cycle, unconditionally** — there is no config check and no "only when enabled" branch, matching Requirement 8.3's "behaves identically regardless of any admin configuration setting."
 
-**`pollOnce` heartbeat tail** — appended after the existing inverter/meter/battery reads, **inside the same `try`** so a heartbeat failure follows the existing cycle-failure path (`info.connection=false`, close, reconnect next cycle) (Req 11.6):
+**`onStateChange` — replacing the old control dispatch.** The old foreign-source-driven Route 1 (house/wallbox consumption) is deleted entirely along with `computeDischargeLimit`/`isSourceValid`/the sample cache. The old Route 2 (`WRITABLE_EXPERT` set, `findControlDef`, write-only-if-changed on `0xE010`) is replaced by a single, simpler path over the new nine-register table:
 
-```
-// ... existing reads unchanged ...
-if (this.controlActive) {
-    const limit = computeDischargeLimit(house, wallbox, Date.now(), maxAge, maxDischargeLimit);
-    // 0xE00B renewed + 0xE00D re-asserted UNCONDITIONALLY every cycle (Req 10.2, 11.1, 11.2)
-    // 0xE000/0xE004/0xE00A NOT written here (Req 11.4); 0xE010 refreshed only when changed (Req 11.3, 8.2)
-    this.lastWritten0xE010 = await controlWriter.heartbeat(limit, this.lastWritten0xE010, this.config.commandTimeout);
-    await stateManager.setControlAck('computedDischargeLimit', limit); // reflect normal-surface value
+```ts
+private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
+    if (!state) return;                 // deletion — ignore
+    if (state.ack) return;              // adapter's own poll-read ack or write-ack — ignore
+    void this.handleStorEdgeControlChange(id, state);
+}
+
+private async handleStorEdgeControlChange(id: string, state: ioBroker.State): Promise<void> {
+    const prefix = `${this.namespace}.StorEdgeControlBlock.`;
+    if (!id.startsWith(prefix)) return;                 // not this feature — ignore
+    const leaf = id.slice(prefix.length);
+    const def = findStorEdgeControlDef(leaf);
+    if (!def) return;                                    // unknown leaf — ignore
+
+    const value = Number(state.val);
+    if (!Number.isFinite(value) || value < def.min || value > def.max) {
+        this.log.error(
+            `Rejected write to ${leaf} (0x${def.address.toString(16).toUpperCase()}): ` +
+            `${state.val} is outside the documented range [${def.min}, ${def.max}]`,
+        );
+        return;                                          // out-of-range: no write, no ack, retain previous
+    }
+
+    try {
+        if (def.kind === 'uint16') {
+            await this.modbusClient!.writeSingleRegister(def.address, value);          // FC06
+        } else if (def.kind === 'float32') {
+            await this.modbusClient!.writeMultipleRegisters(def.address, encodeFloat32le(value)); // FC16
+        } else {
+            await this.modbusClient!.writeMultipleRegisters(def.address, encodeUint32le(value));  // FC16
+        }
+        await this.stateManager!.ackStorEdgeWrite(def, value);                          // ack on success
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.log.error(
+            `Failed to write ${leaf} (0x${def.address.toString(16).toUpperCase()}) = ${value}: ${reason}. ` +
+            `Retaining the previously acknowledged value.`,
+        );
+        // non-fatal: no ack on failure, previous acked value is retained as-is
+    }
 }
 ```
 
-**Disable transition.** `controlEnabled` is a config setting; flipping it false (via admin config change, which restarts the instance, re-evaluated in `onReady`) drives the revert: `applyRevert(config.defaultStorageControlMode)` writes `0xE004=default` (Req 12.1), then the adapter unsubscribes both sources and `control.*` and leaves `controlActive=false` so subsequent cycles skip the heartbeat (Req 12.2, 12.3). If the running instance can observe the flip without restart, the same revert path is invoked; otherwise the restart's fresh `onReady` sees `controlEnabled=false` and simply stays in READ_ONLY (no writes at all) — in that case the inverter's own command timeout eventually returns it to default. The design revert path (write default mode) is invoked whenever the adapter is alive to observe the OFF transition.
+Dispatch is inlined directly against `this.modbusClient` — no separate `ControlWriter` class. The old `ControlWriter`'s value came from centralizing `applyEnable`/`heartbeat`/`applyRevert` lifecycle orchestration across many call sites; none of that lifecycle exists any more, so a dedicated dispatch class would only wrap a three-way `switch` that is already this short inline. Every validation-passing write is sent unconditionally — there is deliberately **no** "write-only-if-changed" suppression (Requirement 7.2), unlike the old design's `0xE010`-specific behavior.
 
-**`onUnload`** is unchanged and performs **no** control write (Req 12.6): it clears the timer and closes the socket only.
+**Removed from main.ts entirely:** `enableControl`, `disableControl`, `WRITABLE_EXPERT`, `controlActive`, `controlWriter` (the field and the `ModbusControlWriter` import), `lastWritten0xE010`, `lastHouseSample`, `lastWallboxSample`, the `computeDischargeLimit`/`SourceSample` import, the `findControlDef`/`REMOTE_CONTROL_DISCHARGE_LIMIT` import from the deleted `control-registers.ts`, and the heartbeat tail in `pollOnce`.
 
-### 8. Configuration type + defaults (`src/lib/adapter-config.d.ts`, `io-package.json`)
+**`onUnload`** is unchanged: it still only clears the timer and closes the socket. There is no lifecycle to revert, so no new logic is needed (there never was any StorEdge-specific write-on-unload logic even in the old design; this simply stays exactly as-is).
+
+### 5. Modbus client (`src/lib/modbus-client.ts`) — no functional changes
+
+`writeSingleRegister` (FC06) and `writeMultipleRegisters` (FC16), the shared 10 s timeout race, and the reject-when-not-connected guard all stay exactly as implemented — they are now exercised **unconditionally** (every adapter run subscribes and may dispatch a write) rather than only when a config flag was set. The only change is doc wording: the module header and `IModbusClient`/`ModbusClient` comments describing the write surface as usable "only when control is enabled" are updated to describe it as always available, restricted only to the two function codes and, at the adapter level, only ever targeted at the nine `StorEdgeControlBlock` addresses. No test behavior changes: the existing read-only-invariant test's allowed/forbidden method split is unaffected (it was already updated to allow `writeSingleRegister`/`writeMultipleRegisters`/`writeRegister`/`writeRegisters` and forbid coil methods).
+
+### 6. Config (`src/lib/adapter-config.d.ts`, `io-package.json`, `src/lib/config-validation.ts`)
+
+All control-specific fields are removed. `AdapterConfig` goes back to exactly:
 
 ```ts
 interface AdapterConfig {
@@ -427,279 +343,180 @@ interface AdapterConfig {
     port: number;
     unitId: number;
     pollInterval: number;
-    // --- control (this feature) ---
-    controlEnabled: boolean;             // master gate, default false (Req 16.2)
-    defaultStorageControlMode: number;   // 0..4, written to 0xE004 on disable, default 1
-    defaultFallbackMode: number;         // 0..7, written once to 0xE00A on enable, default 1
-    commandTimeout: number;              // seconds, written to 0xE00B on enable + each cycle, default 120
-    houseConsumptionStateId: string;     // foreign state id (W), default ''
-    wallboxConsumptionStateId: string;   // foreign state id (W), default ''
-    maxDischargeLimit: number;           // W, positive, default 5000
-    sourceMaxAgeSeconds: number;         // positive int, default 120
 }
 ```
 
-`io-package.json` `native` gains:
+`io-package.json` `native` drops `controlEnabled`, `defaultStorageControlMode`, `defaultFallbackMode`, `commandTimeout`, `houseConsumptionStateId`, `wallboxConsumptionStateId`, `maxDischargeLimit`, `sourceMaxAgeSeconds`, leaving only `host`, `port`, `unitId`, `pollInterval`. `config-validation.ts` drops `defaultStorageControlMode`/`defaultFallbackMode` from `CONFIG_BOUNDS`, drops the corresponding `ConfigField` union members and all the `commandTimeout`/`maxDischargeLimit`/`sourceMaxAgeSeconds`/`houseConsumptionStateId`/`wallboxConsumptionStateId`/`controlEnabled` validation blocks, leaving only the original `host`/`port`/`unitId`/`pollInterval` checks. `validateConfig`'s signature and return shape (`ConfigValidationResult`) are unchanged; it simply validates fewer fields.
 
-```json
-"controlEnabled": false,
-"defaultStorageControlMode": 1,
-"defaultFallbackMode": 1,
-"commandTimeout": 120,
-"houseConsumptionStateId": "",
-"wallboxConsumptionStateId": "",
-"maxDischargeLimit": 5000,
-"sourceMaxAgeSeconds": 120
-```
+### 7. React admin (`src-admin/src/components/Settings.tsx` + i18n)
 
-### 9. Config validation (`src/lib/config-validation.ts`)
+The entire control settings section is removed: `renderControlSettings`, the `Checkbox`/`FormControlLabel` enable toggle, the `Alert` portal warning, the `Default Storage Control Mode` `Select` + `modeOptions`, the two `renderStateIdField` calls (house/wallbox) and the `renderSelectIdDialog`/`SELECT_ID_SOURCES`/`SelectIdSource` machinery backing them, and the two `renderNumberField` calls for `maxDischargeLimit`/`sourceMaxAgeSeconds`. `currentConfig()` drops the eight control fields, keeping only `host`/`port`/`unitId`/`pollInterval`. `render()` drops the `this.renderControlSettings(errors)` call, leaving the connection fields, the Test Connection button, and `this.renderValueTable()`.
 
-`ConfigField` gains `'defaultStorageControlMode' | 'defaultFallbackMode' | 'commandTimeout' | 'houseConsumptionStateId' | 'wallboxConsumptionStateId' | 'maxDischargeLimit' | 'sourceMaxAgeSeconds'`. New rules (each error keyed by the offending field, Req 17.7):
+Since `DialogSelectID` was imported from `@iobroker/adapter-react-v5` **solely** to back the house/wallbox object-id pickers, and nothing else in `Settings.tsx` uses it, the import is removed entirely (confirmed by inspection: `DialogSelectID` appears only in `renderSelectIdDialog`, which is deleted in full). Likewise `Checkbox`, `FormControlLabel`, `MenuItem`, `Alert`, `SearchIcon`, `IconButton`, and `Tooltip` were imported only for the control section; each is removed unless still used elsewhere in the file (`MenuItem` is not used by the value table, so it is removed too).
 
-- `defaultStorageControlMode`: integer in `[0, 4]` → else `defaultStorageControlMode` error (Req 17.1).
-- `defaultFallbackMode`: integer in `[0, 7]` → else `defaultFallbackMode` error (Req 17.2).
-- `commandTimeout`: a positive integer (`Number.isInteger && > 0`) **and** strictly greater than `pollInterval` (so each renewal outlives one poll cycle) → else `commandTimeout` error (Req 17.3).
-- `maxDischargeLimit`: a positive number (`> 0`) → else `maxDischargeLimit` error (Req 17.4).
-- `sourceMaxAgeSeconds`: a positive integer (`Number.isInteger && > 0`) → else `sourceMaxAgeSeconds` error (Req 17.5).
-- When `controlEnabled` is true: `houseConsumptionStateId` and `wallboxConsumptionStateId` must be non-empty strings → else the respective field error (Req 17.6). When `controlEnabled` is false these are not required.
-
-The existing `testConnection` handler still passes only host/port/unitId (plus a valid `pollInterval`); control fields are absent there, so they are validated only when present. Note: the `commandTimeout > pollInterval` rule is **reintroduced** here — but with a new motivation. It is no longer about an inverter-side revert window; it now guarantees the per-cycle timeout renewal always sets a value that outlives the interval until the next renewal (Req 10.3, 17.3).
-
-### 10. React admin UI (`src-admin/src/components/Settings.tsx` + i18n)
-
-New control settings are added below the existing connection fields. All labels go through `I18n.t(...)` and every new key is added to all eleven `src-admin/src/i18n/*.json` files (en, de, ru, pt, nl, fr, it, es, pl, uk, zh-cn):
-
-- **Enable battery control** — `Checkbox` bound to `native.controlEnabled`, with a **prominent warning** rendered immediately next to it describing the **recommended** StorEdge portal prerequisite (Req 15.2): disabling the StorEdge storage profile in the SolarEdge monitoring portal / SetApp before enabling is recommended to avoid a ~10 s portal-side reversion on affected firmware, while noting that the renewed command timeout is the primary keep-alive.
-- **Default Storage Control Mode** — MUI `Select` with **exactly five** options (Req 16.3): `0` Disabled; `1` Maximize Self Consumption; `2` Time of Use / Profile programming; `3` Backup Only; `4` Remote Control.
-- **Default fallback mode** — numeric field bound to `native.defaultFallbackMode` (0..7), default 1 (Req 16.5).
-- **Command timeout (s)** — numeric field bound to `native.commandTimeout`, default 120 (Req 16.5).
-- **House consumption state id** — foreign-state-id text input bound to `native.houseConsumptionStateId` (Req 16.4).
-- **Wallbox consumption state id** — foreign-state-id text input bound to `native.wallboxConsumptionStateId` (Req 16.4).
-- **Max discharge limit (W)** — numeric field, default 5000.
-- **Source max age (s)** — numeric field, default 120.
-
-Validation is shared: `currentConfig()` is extended with the eight control fields and `validateConfig` drives per-field `error`/`helperText` exactly as the existing fields do (including per-field errors for the new **Default fallback mode** and **Command timeout (s)** fields). New i18n keys (English values shown) — every key is added to all eleven `src-admin/src/i18n/*.json` files:
-
-```json
-"Enable battery control": "Enable battery control",
-"StorEdge portal warning": "Disabling the StorEdge storage profile in the SolarEdge monitoring portal / SetApp before enabling control is recommended to avoid a portal-side reversion on affected firmware. The renewed command timeout is the primary keep-alive.",
-"Default Storage Control Mode": "Default Storage Control Mode",
-"Default fallback mode": "Default fallback mode",
-"Command timeout (s)": "Command timeout (s)",
-"House consumption state": "House consumption state (W)",
-"Wallbox consumption state": "Wallbox consumption state (W)",
-"Max discharge limit (W)": "Max discharge limit (W)",
-"Source max age (s)": "Source max age (s)",
-"Mode 0 Disabled": "Disabled",
-"Mode 1 Maximize Self Consumption": "Maximize Self Consumption",
-"Mode 2 Time of Use": "Time of Use / Profile programming",
-"Mode 3 Backup Only": "Backup Only",
-"Mode 4 Remote Control": "Remote Control",
-"Invalid default control mode": "Default control mode must be an integer between 0 and 4",
-"Invalid default fallback mode": "Default fallback mode must be an integer between 0 and 7",
-"Invalid command timeout": "Command timeout must be a positive integer greater than the poll interval",
-"Invalid max discharge limit": "Max discharge limit must be a positive number",
-"Invalid source max age": "Source max age must be a positive integer",
-"Source id required": "A foreign state id is required when control is enabled"
-```
+All 21 i18n keys introduced by the old design (`Enable battery control`, `StorEdge portal warning`, `Default Storage Control Mode`, `Default fallback mode`, `Command timeout (s)`, `House consumption state`, `Wallbox consumption state`, `Max discharge limit (W)`, `Source max age (s)`, the five `Mode N ...` keys, the six `Invalid ...`/`... required` error-message keys) are removed from all eleven `src-admin/src/i18n/*.json` files (`en`, `de`, `ru`, `pt`, `nl`, `fr`, `it`, `es`, `pl`, `uk`, `zh-cn`). The admin UI reverts to exactly: connection settings (host/port/unitId/pollInterval + Test Connection) plus the read-only SunSpec value tables (inverter/meter/battery accordions), unchanged from before either control feature existed.
 
 ## Data Models
 
-### Control register (wire model)
+### StorEdgeControlBlock register (wire model)
 
-| Register                        | Address  | Kind    | Words | Word order | FC   | Written?                | Notes                                          |
-| ------------------------------- | -------- | ------- | ----- | ---------- | ---- | ----------------------- | ---------------------------------------------- |
-| Export Configuration            | `0xE000` | uint16  | 1     | —          | FC06 | **written once** (=0) on enable | conflicts with Remote Control (Req 9.1) |
-| Storage Control Mode            | `0xE004` | uint16  | 1     | —          | FC06 | enable (=4) + disable-revert only | range 0..4 (Req 9.2, 12.1, 12.4)     |
-| Storage Default Mode            | `0xE00A` | uint16  | 1     | —          | FC06 | **written once** (=fallback) on enable | range 0..7 (Req 9.3, 12.5)     |
-| Remote Control Command Timeout  | `0xE00B` | uint32  | 2     | le         | FC16 | enable + **renewed each cycle** | seconds, range 0..86400; `encodeUint32le` (Req 4.4, 10) |
-| Remote Control Command Mode     | `0xE00D` | uint16  | 1     | —          | FC06 | enable + each cycle (=4) | range 0..7; 4 = discharge to explicit limit   |
-| Remote Control Charge Limit     | `0xE00E` | float32 | 2     | le         | FC16 | expert-only, optional   | watts; `encodeFloat32le`                       |
-| Remote Control Discharge Limit  | `0xE010` | float32 | 2     | le         | FC16 | enable + each cycle write-only-if-changed | watts; `encodeFloat32le`; 5000 W = `[0x4000, 0x459c]` |
+Verbatim from the manufacturer's Global StorEdge Control Block table (base `0xE004`, mirrored at `0xF704`):
 
-Encoding: uint16 written verbatim (FC06); float32 encoded **little-endian word order** (`encodeFloat32le`, low word first, bytes big-endian within each word) via FC16 — the exact inverse of `decodeRegisters(..., 'float32le')`; uint32 (`0xE00B`) encoded **little-endian word order** (`encodeUint32le`, low word first) via FC16 — the exact inverse of `decodeRegisters(..., 'uint32le')`. Both `*le` decoders already serve the `0xE1xx` battery block.
+| Register                              | Address  | Kind    | Words | Word order | FC   | Range              | Unit  |
+| -------------------------------------- | -------- | ------- | ----- | ---------- | ---- | ------------------- | ----- |
+| Storage_Control_Mode                   | `0xE004` | uint16  | 1     | —          | FC06 | 0 – 4                | —     |
+| Storage_AC_Charge_Policy                | `0xE005` | uint16  | 1     | —          | FC06 | 0 – 3                | —     |
+| Storage_AC_Charge_Limit                 | `0xE006` | float32 | 2     | le         | FC16 | 0 – Max_Float (`Number.MAX_VALUE`) | kWh or % |
+| Storage_Backup_Reserved_Setting         | `0xE008` | float32 | 2     | le         | FC16 | 0 – 100              | %     |
+| Storage_Charge_Discharge_Default_Mode   | `0xE00A` | uint16  | 1     | —          | FC06 | 0 – 7                | —     |
+| Remote_Control_Command_Timeout          | `0xE00B` | uint32  | 2     | le         | FC16 | 0 – 86400            | s     |
+| Remote_Control_Command_Mode             | `0xE00D` | uint16  | 1     | —          | FC06 | 0 – 7                | —     |
+| Remote_Control_Charge_Limit             | `0xE00E` | float32 | 2     | le         | FC16 | 0 – Battery_Max_Power (`BATTERY_MAX_POWER_W` = 10000) | W |
+| Remote_Control_Discharge_Limit          | `0xE010` | float32 | 2     | le         | FC16 | 0 – Battery_Max_Power (`BATTERY_MAX_POWER_W` = 10000) | W |
 
-### Control state (ioBroker model)
+Word accounting: `Storage_Control_Mode` (`0xE004`, 1w) + `Storage_AC_Charge_Policy` (`0xE005`, 1w) + `Storage_AC_Charge_Limit` (`0xE006`–`0xE007`, 2w) + `Storage_Backup_Reserved_Setting` (`0xE008`–`0xE009`, 2w) + `Storage_Charge_Discharge_Default_Mode` (`0xE00A`, 1w) + `Remote_Control_Command_Timeout` (`0xE00B`–`0xE00C`, 2w) form one contiguous **9-word** span `0xE004..0xE00C`. `Remote_Control_Command_Mode` (`0xE00D`, 1w) + `Remote_Control_Charge_Limit` (`0xE00E`–`0xE00F`, 2w) + `Remote_Control_Discharge_Limit` (`0xE010`–`0xE011`, 2w) form a second contiguous **5-word** span `0xE00D..0xE011`. The poll read therefore issues exactly two requests — `readHoldingRegisters(0xE004, 9)` and `readHoldingRegisters(0xE00D, 5)` — one per contiguous span, minimizing Modbus round-trips in the same spirit as `BATTERY_READ_SEGMENTS` (`sunspec-map.ts`/`sunspec-reader.ts`), which splits a device block into its readable contiguous windows rather than issuing one read per value or one oversized read per block. (Unlike the battery block, nothing in the manufacturer table indicates `0xE00C`/`0xE0D` boundary is a gap the device rejects; splitting into exactly these two requests is simply the natural two-groups-of-contiguous-registers reading, not a workaround for a confirmed unreadable gap. If live testing shows the full `0xE004..0xE011` (14-word) span reads successfully in one request, that single-request form is an acceptable simplification — the two-span form here is the conservative default consistent with how the adapter already treats StorEdge register blocks.)
 
-Under the expert/advanced `control` channel:
+Encoding: uint16 written/read verbatim (no multiword encoding). float32 registers use `encodeFloat32le`/`decodeRegisters(..., 'float32le')` — little-endian word order, low word first, bytes big-endian within each word; `encodeFloat32le(5000) === [0x4000, 0x459c]`. The uint32 register (`0xE00B`) uses `encodeUint32le`/`decodeRegisters(..., 'uint32le')` — same word-order convention, low word first. Both `*le` codecs are unchanged, pre-existing functions already serving the `0xE1xx` battery block.
 
-- `control.storageControlMode` (number, W/A raw `0xE004`, read+write)
-- `control.remoteControlCommandMode` (number, raw `0xE00D`, read+write)
-- `control.remoteControlDischargeLimit` (number W, raw `0xE010`, read+write)
-- `control.remoteControlCommandTimeout` (number s, raw `0xE00B`, read-only; reflects the renewed value)
-- `control.computedDischargeLimit` (number W, normal-surface reflection, read-only)
-- `control.controlActive` (boolean status, read-only)
+### StorEdgeControlBlock state (ioBroker model)
 
-There is **no** `disableDischarge` boolean switch — the master enable is the `controlEnabled` config setting, not a state.
+Under the plain (non-expert) `StorEdgeControlBlock` channel — all nine `read=true, write=true`:
+
+- `StorEdgeControlBlock.storageControlMode` (number, raw `0xE004`)
+- `StorEdgeControlBlock.storageAcChargePolicy` (number, raw `0xE005`)
+- `StorEdgeControlBlock.storageAcChargeLimit` (number, kWh/%, raw `0xE006`)
+- `StorEdgeControlBlock.storageBackupReservedSetting` (number, %, raw `0xE008`)
+- `StorEdgeControlBlock.storageChargeDischargeDefaultMode` (number, raw `0xE00A`)
+- `StorEdgeControlBlock.remoteControlCommandTimeout` (number, s, raw `0xE00B`)
+- `StorEdgeControlBlock.remoteControlCommandMode` (number, raw `0xE00D`)
+- `StorEdgeControlBlock.remoteControlChargeLimit` (number, W, raw `0xE00E`)
+- `StorEdgeControlBlock.remoteControlDischargeLimit` (number, W, raw `0xE010`)
+
+These are the **only** `write=true` states anywhere in the adapter; every SunSpec-derived state (`inverter.*`, `meter.<n>.*`, `battery.<n>.*`) remains `write=false`, unchanged.
 
 ### Runtime state (adapter instance)
 
-- `controlActive: boolean` — true after the `onReady` gate when `controlEnabled` is true; drives the heartbeat tail.
-- `lastHouseSample: SourceSample | undefined` — last house consumption value + timestamp.
-- `lastWallboxSample: SourceSample | undefined` — last wallbox consumption value + timestamp.
-- `lastWritten0xE010: number | undefined` — last value written to the discharge-limit register, for write-only-if-changed.
+None. Unlike the deleted design there is no `controlActive` flag, no sample cache, and no `lastWritten0xE010` — the adapter holds no control-related state between cycles; every poll re-reads the live device values and every write is dispatched independently.
 
 ## Error Handling
 
-- **Write while disconnected** — `ModbusClient` write methods reject with `Modbus client is not connected` before any library call; `onStateChange` logs and retains the previous acked value; the heartbeat tail throw is caught by the cycle-failure path (Req 2.6, 14.1).
-- **Write timeout** — bounded by `DEFAULT_TIMEOUT_MS` (10 s) via the same rejecting-timer race as reads; treated as a write failure (log + retain) (Req 2.7).
-- **Modbus exception (e.g. exception 144 / illegal server response)** — a write throwing a Modbus exception is **non-fatal**: `onStateChange` logs and retains; the heartbeat path routes it through the existing cycle-failure handling. In particular, the per-cycle `0xE00B` timeout renewal (FC16 uint32le) can throw such an exception on some firmware; that follows the cycle-failure path and never terminates the adapter (Req 14.2, 11.6).
-- **Invalid / stale source** — a missing, non-numeric, or too-old source makes `computeDischargeLimit` return **0**, so a bad feed parks discharge at zero rather than commanding a wrong limit (Req 6.2–6.4, 7.4).
-- **Acked / deletion change** — ignored up front, preventing the adapter's own ack writes from re-triggering writes and skipping deletions (Req 13.5).
-- **Unknown / read-only-state control id** — a change resolving to no def, or to a control state that is `write=false` (the `0xE00B` timeout reflection), is ignored; foreign ids other than the two configured sources are never subscribed.
-- **`0xE000` / `0xE004` / `0xE00A` not written during heartbeat** — these initial-config registers are written only on enable (`0xE000`/`0xE00A` once; `0xE004` on enable and disable-revert). The `heartbeat` method contains no code path that writes them (Req 11.4, 12.4, 12.5).
-- **Invalid control config** — `validateConfig` reports per-field errors (including `defaultFallbackMode` and `commandTimeout`); when `controlEnabled` is true and a control field is invalid the adapter follows the existing "invalid config → log and do not start" pattern for the control path, while read polling still runs when host is valid.
-- **No revert on shutdown** — `onUnload` issues no write (Req 12.6); the inverter's own command timeout (last renewed value) governs behavior if the adapter dies while holding control.
-- **Portal-revert mitigation** — the renewed short `commandTimeout` on `0xE00B` each cycle is the primary keep-alive; the recommended portal-profile-disabled prerequisite avoids the ~10 s portal-side revert on affected firmware (documented + admin warning, Req 15).
+- **Write while disconnected** — `writeSingleRegister`/`writeMultipleRegisters` reject with `Modbus client is not connected` before any library call; `onStateChange` logs the failure and retains the previously acknowledged value (no ack on failure).
+- **Write timeout** — bounded by the shared `DEFAULT_TIMEOUT_MS` (10 s) rejecting-timer race, identical mechanism to reads; treated as a write failure (log + retain, non-fatal).
+- **Modbus exception on write** — logged and non-fatal; the state keeps its previously acknowledged value; the adapter continues running.
+- **Out-of-range candidate value** — rejected *before* any Modbus call is attempted: `onStateChange` logs a validation error naming the register, the offending value, and the documented range, and returns without writing or acknowledging; the previously acknowledged value is retained untouched.
+- **Poll-read failure (any of the two StorEdgeControlBlock read requests throws)** — follows the *existing* `pollOnce` cycle-failure path exactly like an inverter/meter/battery read failure: `info.connection` is set false, the socket is closed, and the next cycle reconnects. No special-casing for this block; it shares fate with the rest of the cycle it runs inside.
+- **Acked / deletion change** — ignored up front in `onStateChange`, so the adapter's own poll-read acks and write-success acks never re-trigger a write, and object deletions are not treated as writes.
+- **Unknown leaf under `StorEdgeControlBlock.`** — ignored (no matching def); a change under any other branch is ignored by the `startsWith(prefix)` guard before `findStorEdgeControlDef` is even consulted.
 
 ## Testing Strategy
 
-Dual approach: **property tests** for input-varying logic (write encoding, computed-limit clamping, source validity, write-only-if-changed, dispatch, validation, heartbeat/initial-config write counting) and **example/edge tests** for deterministic wiring and fixed-value actions. Property tests run ≥100 iterations and are tagged `Feature: storedge-battery-control, Property {n}: {text}`.
+Dual approach: **property tests** (≥100 iterations, tagged `Feature: storedge-battery-control, Property {n}: {text}`) for input-varying logic — encoding round-trips, function-code/encoding selection, range-validation boundaries, dispatch/ack/retain behavior, idempotent creation — and **example tests** for deterministic, fixed-shape wiring: the exact nine-row definition table, unconditional channel/subscription creation on `onReady`, the two-span poll read wiring, and the fixed `encodeFloat32le(5000)` vector.
 
 ### Unit / property tests
 
-- **FC06/FC16 forwarding & selection** — property: `writeSingleRegister` forwards exactly `(address, uint16)`, `writeMultipleRegisters` forwards exactly `(address, words)` to a recording client double, and `ControlWriter.write` selects FC06 for uint16 defs, FC16 + `encodeFloat32le` for float32 defs, and FC16 + `encodeUint32le` for the uint32 def `0xE00B` (Property 2).
-- **Not-connected rejection** — property: any write kind/args with `isConnected()===false` ⇒ rejects and issues no library call (Property 3).
-- **float32le round-trip** — property over finite float32 values: `decodeRegisters(encodeFloat32le(v), 'float32le') === v` (bit-exact after rounding), plus the fixed vector `encodeFloat32le(5000) === [0x4000, 0x459c]` (Property 4).
-- **uint32le round-trip** — property over uint32 values: `decodeRegisters(encodeUint32le(v), 'uint32le') === v`, low word first (Property 5).
-- **Computed-limit clamping** — property over house/wallbox/max: result equals `min(max(house-wallbox,0),max)` and lies in `[0, max]` (Property 6); invalid/stale source ⇒ 0 (Property 7).
-- **Write-only-if-changed** — model-based property over a sequence of computed limits: `0xE010` write count equals the number of values differing from the previous written value, and `lastWritten` tracks the last write (Property 8).
-- **Initial-config sequence** — property: `applyEnable(limit, opts)` issues exactly the six writes `0xE000=0`, `0xE004=4`, `0xE00A=defaultFallbackMode`, `0xE00D=4`, `0xE00B=commandTimeout` (uint32le, FC16), `0xE010=limit` (float32le, FC16) **in that order** (Property 9).
-- **Heartbeat renew/re-assert** — property over N active cycles: exactly N unconditional writes of `0xE00B=commandTimeout` (uint32le) and N of `0xE00D=4`, `0xE010` written only on changed cycles, and **no** write to `0xE000`, `0xE004`, or `0xE00A`; none after disable (Property 10).
-- **Dispatch / ack / ignore-acked** — property: any non-acked change on a writable control id routes one write to the correct register+FC with the same value and acks once on success; a failing write acks nothing (retains prior); any `ack=true` change issues zero writes (Properties 12, 13).
-- **Read-only-when-disabled** — property: with `controlEnabled=false`, across `onReady` + N poll cycles + injected state changes, zero write function codes are issued and no subscription is registered (Property 1).
-- **Revert scope** — property/example: the OFF transition writes `0xE004=default` and stops the heartbeat; `onUnload` issues no control write (Property 14).
-- **Config validation** — properties over `defaultStorageControlMode` (int [0,4]), `defaultFallbackMode` (int [0,7]), `commandTimeout` (positive int and `> pollInterval`), `maxDischargeLimit` (>0), `sourceMaxAgeSeconds` (positive int), and the required-non-empty source ids when `controlEnabled` (Properties 15–20), each asserting the field-keyed error.
-- **Control-state metadata** — example: each expert writable state has `read=true, write=true`; the `0xE00B` timeout state is `read=true, write=false` (reflects the renewed value); no control state derives from `SUNSPEC_MAP`/`BATTERY_MAP` (supports Property 14/13.6).
-
-### Revised existing property test
-
-`src/lib/modbus-client.test.ts` **Property 4 (read-only invariant)** is revised: `writeSingleRegister`/`writeMultipleRegisters`/`writeRegister`/`writeRegisters` move out of `FORBIDDEN_WRITE_METHODS` into the allowed write surface; coil methods stay forbidden; the "reads issue only FC03/FC04" arm remains.
+- **Register table matches the manufacturer spec exactly** — example: each of the nine defs has the documented address/kind/length/wordOrder/fc/min/max/unit; the table has exactly nine entries; none of the nine names collide with any `SUNSPEC_MAP`/`BATTERY_MAP` name.
+- **FC06/FC16 selection is exact per register** — property over the nine defs: `kind:'uint16'` ⇒ dispatch calls `writeSingleRegister`, never `writeMultipleRegisters`; `kind:'float32'|'uint32'` ⇒ dispatch calls `writeMultipleRegisters` with the correctly-selected encoder (`encodeFloat32le` vs `encodeUint32le`), never `writeSingleRegister`.
+- **Not-connected rejection** — property: for any def/value, when the client is not connected the write rejects and no underlying library call is issued.
+- **float32le round-trip** — property over finite float32 values: `decodeRegisters(encodeFloat32le(v), 'float32le') === v` (bit-exact after float32 rounding); fixed vector `encodeFloat32le(5000) === [0x4000, 0x459c]`.
+- **uint32le round-trip** — property over the uint32 domain: `decodeRegisters(encodeUint32le(v), 'uint32le') === v`, low word first.
+- **Range validation accept/reject boundary** — property per register (or parameterized across all nine): values strictly inside `[min, max]` are forwarded to a write; `min` and `max` themselves are accepted (inclusive bounds); any value `< min` or `> max` is rejected with no write attempted and no ack.
+- **Poll-read updates all nine states from live values with `ack=true`** — property over generated live register words: after a poll cycle, every one of the nine states equals the freshly decoded value with `ack=true`, regardless of what (if anything) was previously written or previously read.
+- **Poll-read reflects the live value, not the last write** — property: for any previously-acked write value and any different live value returned by the next poll read, the state after that poll shows the live value, not the write.
+- **Poll-read failure is non-fatal** — property: for any of the two read spans throwing, the adapter does not terminate and the failure follows the same path as an inverter/meter/battery read failure in the same cycle.
+- **Write dispatch sends every validation-passing write, no suppression** — property: for any sequence of valid values (including repeats of the same value), each one is dispatched as its own write — there is no write-only-if-changed short-circuit.
+- **Dispatch acks on success, retains on failure** — property: for any non-acked, in-range change, a successful write acks the state with the written value; a failing write (disconnected/timeout/exception) issues no ack and leaves the previously acknowledged value untouched, while the adapter keeps running.
+- **Ignore-acked** — property: for any state change carrying `ack=true`, zero Modbus writes are issued.
+- **Unconditional + idempotent channel/state creation** — property over N repeated `ensureStorEdgeControlBlock()` calls (any N ≥ 1): the channel and all nine states are created exactly once (no duplicate `setObjectNotExistsAsync` calls beyond the first), and this holds regardless of config content (including configs with none of host/port/unitId/pollInterval valid).
+- **Write=true surface is exactly these nine states** — property: for any state created via the SunSpec register-map path (`ensureState`, over generated inverter/meter/battery-shaped defs), `common.write` is always `false`; the only states ever created with `common.write === true` are the nine `StorEdgeControlBlock` states.
 
 ### Integration
 
-`src/lib/integration.test.ts` gains a control scenario against a mock client: enable → verify the ordered initial-config sequence (`0xE000=0`, `0xE004=4`, `0xE00A=fallback`, `0xE00D=4`, `0xE00B=commandTimeout`, `0xE010=limit`) → drive two source changes and two poll cycles → verify per-cycle renewal of `0xE00B`, re-assert of `0xE00D`, write-only-if-changed on `0xE010`, and **no** re-write of `0xE000`/`0xE004`/`0xE00A` → disable → verify `0xE004=default` and heartbeat stops.
+`src/lib/integration.test.ts` gains a StorEdgeControlBlock scenario against a mock client: start the adapter (no config flag needed) → verify the channel and all nine states exist with `write=true` immediately → run a poll cycle → verify all nine states show the mock's live values with `ack=true` → drive an in-range write on one state → verify exactly one correctly-encoded write is issued and the state acks with the written value → drive an out-of-range write → verify zero writes are issued, an error is logged, and the state's previous value is unchanged → drive a write while the mock client reports disconnected → verify the write rejects, is logged, and the previous value is retained.
 
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 1: Read-only when control is disabled
+### Property 1: Read surface is unchanged for FC03/FC04
 
-*For any* sequence of poll cycles and injected state changes, when `controlEnabled` is false the adapter issues zero Modbus write function codes, registers no consumption-source or control-state subscription, and performs no heartbeat, while its FC03/FC04 read polling continues unchanged.
+*For any* sequence of read operations issued by the adapter, only FC03 (`readHoldingRegisters`) and FC04 (`readInputRegisters`) are used, with behavior identical to before this feature existed.
 
-**Validates: Requirements 1.2, 1.3, 1.4, 1.5**
+**Validates: Requirements 1.8**
 
-### Property 2: FC06/FC16 forwarding and function-code selection
+### Property 2: FC06/FC16 forwarding and per-register function-code/encoding selection
 
-*For any* register address and any value, `writeSingleRegister(address, v)` forwards exactly that address and uint16 value via FC06 and `writeMultipleRegisters(address, words)` forwards exactly that address and word array via FC16, issuing no other write; and the control writer selects FC06 for every uint16 register (`0xE000`, `0xE004`, `0xE00A`, `0xE00D`), FC16 with `encodeFloat32le` for every float32 register (`0xE010`, `0xE00E`), and FC16 with `encodeUint32le` for the uint32 register (`0xE00B`).
+*For any* of the nine StorEdgeControlBlock registers and any value within its representable range, dispatch selects `writeSingleRegister` (FC06) if and only if the register's kind is `uint16`, and selects `writeMultipleRegisters` (FC16) with `encodeFloat32le` for every `float32` register and with `encodeUint32le` for the one `uint32` register (`0xE00B`); no register is ever dispatched through the other function code.
 
-**Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.4**
+**Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 2.3, 2.4**
 
 ### Property 3: Writes are rejected when not connected
 
-*For any* write kind (FC06 or FC16) and any arguments, when the client is not connected the operation rejects with a descriptive error and no underlying library write method is called.
+*For any* register def and any candidate value, when the client is not connected the write operation rejects with a descriptive error and no underlying library write method is called.
 
-**Validates: Requirements 2.6**
+**Validates: Requirements 1.6**
 
 ### Property 4: float32le encoding round-trips against the existing decoder
 
-*For any* finite float32 value `v`, `decodeRegisters(encodeFloat32le(v), 'float32le')` reproduces `v` (bit-exact after float32 rounding) with the low word first and big-endian bytes within each word, and in particular `encodeFloat32le(5000)` equals `[0x4000, 0x459c]`.
+*For any* finite float32 value `v`, `decodeRegisters(encodeFloat32le(v), 'float32le')` reproduces `v` (bit-exact after float32 rounding), with the low word first and big-endian bytes within each word; in particular `encodeFloat32le(5000)` equals `[0x4000, 0x459c]`.
 
-**Validates: Requirements 5.1, 5.2, 5.3, 5.4**
+**Validates: Requirements 4.1, 4.2, 4.5**
 
 ### Property 5: uint32le encoding round-trips against the existing decoder
 
-*For any* unsigned 32-bit integer `v`, `decodeRegisters(encodeUint32le(v), 'uint32le')` reproduces `v` exactly, with the low 16-bit word first (`words[0]`) and the high word second (`words[1]`); the encoder is the exact inverse of `decodeRegisters(..., 'uint32le')` used for the command timeout `0xE00B`.
+*For any* unsigned 32-bit integer `v`, `decodeRegisters(encodeUint32le(v), 'uint32le')` reproduces `v` exactly, with the low 16-bit word first (`words[0]`) and the high word second (`words[1]`).
 
-**Validates: Requirements 4.4, 5.1**
+**Validates: Requirements 4.3, 4.4**
 
-### Property 6: Computed discharge limit clamps to `[0, maxDischargeLimit]`
+### Property 6: Range validation accepts inside the documented range and rejects outside it
 
-*For any* valid house and wallbox consumption values and any `maxDischargeLimit`, the computed limit equals `min(max(house - wallbox, 0), maxDischargeLimit)`; in particular a negative difference yields 0 and a difference above `maxDischargeLimit` yields `maxDischargeLimit`, so the result always lies in `[0, maxDischargeLimit]`.
+*For any* of the nine StorEdgeControlBlock registers and any candidate value, the adapter proceeds to write the value (via the function code and encoding defined in Property 2) if and only if the value lies within that register's inclusive documented `[min, max]` range; any value outside that range is rejected before any Modbus call is attempted, is logged as a validation error, and never reaches the Modbus client.
 
-**Validates: Requirements 7.1, 7.2, 7.3**
+**Validates: Requirements 6.1, 6.2, 6.4, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9**
 
-### Property 7: Invalid or stale source forces the limit to zero
+### Property 7: Rejected writes retain the previous state and issue no acknowledgement
 
-*For any* pair of source samples in which at least one is missing, non-numeric, or older than `sourceMaxAgeSeconds`, the computed discharge limit is 0.
+*For any* out-of-range candidate value, after rejection the corresponding state's previously acknowledged value is unchanged and the state is not re-acknowledged with the invalid value.
 
-**Validates: Requirements 6.2, 6.3, 6.4, 7.4**
+**Validates: Requirements 6.3**
 
-### Property 8: Discharge limit is written only when it changes
+### Property 8: Poll-read updates all nine states from live device values with ack=true
 
-*For any* sequence of computed discharge limits, `0xE010` is written exactly on those steps where the value differs from the last value written to `0xE010`, is not written when the value is unchanged, and the last-written value is updated to each value actually written.
+*For any* set of live register words returned for the two StorEdgeControlBlock read spans, after a `pollOnce` cycle completes, every one of the nine StorEdgeControlBlock states equals the value decoded from those live words (using the register's defined kind and word order) with `ack=true`, regardless of any prior write or prior read.
+
+**Validates: Requirements 5.1, 5.2, 5.3**
+
+### Property 9: Poll-read failure is non-fatal and follows the existing cycle-failure path
+
+*For any* failure raised while reading either of the two StorEdgeControlBlock register spans during a `pollOnce` cycle, the adapter does not terminate and the failure is handled identically to an inverter/meter/battery read failure in the same cycle (connection marked down, socket closed, reconnect attempted next cycle).
+
+**Validates: Requirements 5.4**
+
+### Property 10: Every validation-passing write is sent — no write-only-if-changed suppression
+
+*For any* sequence of in-range candidate values presented to the same StorEdgeControlBlock state — including consecutive repeats of the same value — every one is dispatched as its own Modbus write; no write is skipped because its value equals a previously written or previously read value.
+
+**Validates: Requirements 7.1, 7.2**
+
+### Property 11: Successful writes acknowledge with the written value; failed writes retain the previous value
+
+*For any* non-acknowledged, in-range change to a StorEdgeControlBlock state, a write that completes successfully results in the state being set to the written value with `ack=true`; a write that fails due to disconnection, timeout, or a Modbus exception is logged, treated as non-fatal, and leaves the state's previously acknowledged value unchanged.
+
+**Validates: Requirements 7.3, 7.4**
+
+### Property 12: Acknowledged changes issue no write
+
+*For any* StorEdgeControlBlock state change carrying `ack=true`, the adapter issues zero Modbus writes, so the adapter's own poll-read updates and write-success acknowledgements never re-trigger a write.
+
+**Validates: Requirements 7.5**
+
+### Property 13: Unconditional and idempotent channel/state creation
+
+*For any* number of repeated adapter starts or repeated `ensureStorEdgeControlBlock()` invocations, and *for any* configuration content, the StorEdgeControlBlock channel and its nine states are created, and repeated invocations create no duplicate objects; creation never depends on and is never altered by any configuration value.
 
 **Validates: Requirements 8.1, 8.2, 8.3**
 
-### Property 9: Initial configuration writes the full sequence in order
+### Property 14: The write=true surface is exactly the nine StorEdgeControlBlock states
 
-*For any* computed limit, `defaultFallbackMode`, and `commandTimeout`, enabling control issues exactly the six writes, in this order: `0xE000 = 0` (FC06), `0xE004 = 4` (FC06), `0xE00A = defaultFallbackMode` (FC06), `0xE00D = 4` (FC06), `0xE00B = commandTimeout` (FC16, `encodeUint32le`), and `0xE010 = computedLimit` (FC16, `encodeFloat32le`); no other register is written during initial configuration.
+*For any* state created via the SunSpec register-map path (inverter, meter, or battery), the state's `write` property is `false`; the only states in the entire adapter ever created with `write: true` are the nine StorEdgeControlBlock states, each created with both `read: true` and `write: true`.
 
-**Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.1**
-
-### Property 10: Heartbeat renews the timeout and command mode but never the initial-config registers
-
-*For any* sequence of poll cycles while control is active, each cycle issues one unconditional FC16 write of `0xE00B = commandTimeout` (`encodeUint32le`) and one unconditional FC06 write of `0xE00D = 4` regardless of their previous values, refreshes `0xE010` only subject to the write-only-if-changed rule, and issues **no** write to Export Configuration `0xE000`, Storage Control Mode `0xE004`, or Storage Default Mode `0xE00A`; after control is disabled no such writes occur in subsequent cycles.
-
-**Validates: Requirements 10.2, 11.1, 11.2, 11.3, 11.4, 11.5, 12.3, 12.4, 12.5**
-
-### Property 11: Heartbeat write failures are non-fatal
-
-*For any* heartbeat cycle in which a control write throws a Modbus exception, the adapter follows the existing poll-cycle failure path and continues running rather than terminating.
-
-**Validates: Requirements 11.6, 14.2**
-
-### Property 12: User changes dispatch the correct write and acknowledge on success
-
-*For any* non-acknowledged change on a writable expert control state, the adapter dispatches exactly one write to that register using the correct function code with the same value (honoring write-only-if-changed for `0xE010`); on success it sets the state once with `ack=true`, and on failure it writes no new acknowledged value and retains the previously acknowledged value while continuing to run.
-
-**Validates: Requirements 13.4, 14.1, 14.3**
-
-### Property 13: Acknowledged changes issue no write
-
-*For any* control-state change carrying `ack=true`, the adapter issues zero Modbus writes, so adapter-originated acknowledgments never trigger further writes.
-
-**Validates: Requirements 13.5**
-
-### Property 14: Revert happens on disable only, never on unload
-
-*For any* execution, disabling control (the `controlEnabled` OFF transition) writes `defaultStorageControlMode` to `0xE004` and stops the heartbeat and source subscriptions, whereas adapter unload performs no control write.
-
-**Validates: Requirements 12.1, 12.2, 12.6**
-
-### Property 15: Default control mode bound
-
-*For any* number, the validator accepts `defaultStorageControlMode` if and only if it is an integer in `[0, 4]`; otherwise it reports an error keyed by `defaultStorageControlMode`.
-
-**Validates: Requirements 17.1, 17.7**
-
-### Property 16: Default fallback mode bound
-
-*For any* number, the validator accepts `defaultFallbackMode` if and only if it is an integer in `[0, 7]`; otherwise it reports an error keyed by `defaultFallbackMode`.
-
-**Validates: Requirements 17.2, 17.7**
-
-### Property 17: Command timeout is a positive integer greater than the poll interval
-
-*For any* number and any poll interval, the validator accepts `commandTimeout` if and only if it is a positive integer strictly greater than the poll interval; otherwise it reports an error keyed by `commandTimeout`.
-
-**Validates: Requirements 10.3, 17.3, 17.7**
-
-### Property 18: Max discharge limit positivity
-
-*For any* number, the validator accepts `maxDischargeLimit` if and only if it is strictly positive; otherwise it reports an error keyed by `maxDischargeLimit`.
-
-**Validates: Requirements 17.4, 17.7**
-
-### Property 19: Source max age is a positive integer
-
-*For any* number, the validator accepts `sourceMaxAgeSeconds` if and only if it is a positive integer; otherwise it reports an error keyed by `sourceMaxAgeSeconds`.
-
-**Validates: Requirements 17.5, 17.7**
-
-### Property 20: Source ids required when control is enabled
-
-*For any* configuration with `controlEnabled` true, the validator accepts the configuration only when both `houseConsumptionStateId` and `wallboxConsumptionStateId` are non-empty strings; otherwise it reports an error keyed by the offending source-id field.
-
-**Validates: Requirements 17.6, 17.7**
+**Validates: Requirements 8.4, 9.1, 9.2, 9.3**

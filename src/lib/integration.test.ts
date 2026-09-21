@@ -28,19 +28,10 @@ import { expect } from 'chai';
 import ModbusRTU from 'modbus-serial';
 
 import { validateConfig } from './config-validation';
-import { computeDischargeLimit, type SourceSample } from './consumption';
-import {
-    EXPORT_CONFIG,
-    REMOTE_CONTROL_COMMAND_MODE,
-    REMOTE_CONTROL_COMMAND_TIMEOUT,
-    REMOTE_CONTROL_DISCHARGE_LIMIT,
-    STORAGE_CONTROL_MODE,
-    STORAGE_DEFAULT_MODE,
-} from './control-registers';
-import { ModbusControlWriter } from './control-writer';
 import { ModbusClient } from './modbus-client';
 import { StateManager, type StateManagerAdapter } from './state-manager';
-import { decodeRegisters } from './sunspec-decode';
+import { findStorEdgeControlDef, STOREDGE_CONTROL_REGISTERS } from './storedge-control-map';
+import { decodeRegisters, encodeFloat32le, encodeUint32le } from './sunspec-decode';
 import {
     BATTERY_READ_SEGMENTS,
     COMMON_BASE,
@@ -137,6 +128,21 @@ class RegisterStore {
         // Little-endian word order: low word first.
         this.set(addr, loWord);
         this.set(addr + 1, hiWord);
+    }
+
+    /**
+     * Write an unsigned 32-bit integer across two words in little-endian WORD order
+     * (low word first, high word second) — matches the `uint32le` decoder and is
+     * exactly the word order `encodeUint32le` produces. Used to seed
+     * `remoteControlCommandTimeout` (0xE00B).
+     *
+     * @param addr
+     * @param value
+     */
+    setUint32le(addr: number, value: number): void {
+        const v = value >>> 0;
+        this.set(addr, v & 0xffff);
+        this.set(addr + 1, (v >>> 16) & 0xffff);
     }
 
     /**
@@ -452,11 +458,11 @@ function startServer(store: RegisterStore, port: number, delayMs = 0): Promise<M
                 }
             },
             // --- Write function codes (test-only) --------------------------------
-            // The read-only SunSpec scenarios never use these; the control scenario
-            // drives ModbusControlWriter (FC06/FC16) against them so writes actually
-            // land in the RegisterStore at the SAME absolute address reads are served
-            // from. `writeWord` also bumps a per-address write counter so the
-            // scenario can assert write-only-if-changed behavior.
+            // The read-only SunSpec scenarios never use these; the StorEdgeControlBlock
+            // scenario drives real ModbusClient FC06/FC16 calls against them so writes
+            // actually land in the RegisterStore at the SAME absolute address reads are
+            // served from. `writeWord` also bumps a per-address write counter so the
+            // scenario can assert exactly-once write dispatch.
             setRegister: (addr: number, value: number, _unitID: number, cb: (err: Error | null) => void): void => {
                 store.writeWord(addr, value);
                 cb(null);
@@ -966,54 +972,57 @@ describe('Feature: solaredge-sunspec-reader, integration: timeout and reconnect'
 });
 
 // ---------------------------------------------------------------------------
-// Task 11.1 — StorEdge battery-control lifecycle against the live mock server
+// Task 18.1 — StorEdgeControlBlock: unconditional channel, poll-read, write
+// dispatch, range validation, and disconnected-write rejection against the
+// live mock server
 // ---------------------------------------------------------------------------
 
 /**
- * Drives the REAL ModbusControlWriter (FC06/FC16) over TCP against the in-process
- * mock server, so every enable/heartbeat/revert write actually lands in the mock
- * device's RegisterStore. The scenario follows SolarEdge's documented procedure:
+ * Drives the REAL `StateManager.ensureStorEdgeControlBlock`/`writeStorEdgeValue`/
+ * `ackStorEdgeWrite` plus a real `ModbusClient` (FC03/FC06/FC16) over TCP against
+ * the in-process mock server, mirroring `main.ts`'s `handleStorEdgeControlChange`
+ * dispatch inline (there is no `ModbusControlWriter`/lifecycle class any more —
+ * see design.md's Testing Strategy "Integration" paragraph). The scenario:
  *
- *   ENABLE   -> the ordered six-write initial-config sequence
- *               (0xE000=0, 0xE004=4, 0xE00A=fallback, 0xE00D=4,
- *                0xE00B=commandTimeout (uint32le), 0xE010=limit (float32le)).
- *   CYCLE A  -> heartbeat with a CHANGED limit: 0xE00B renewed, 0xE00D re-asserted,
- *               0xE010 rewritten; the initial-config regs 0xE000/0xE004/0xE00A are
- *               NEVER re-written by the heartbeat.
- *   CYCLE B  -> heartbeat with an UNCHANGED limit: 0xE00B renewed + 0xE00D
- *               re-asserted, but 0xE010 skipped (write-only-if-changed).
- *   DISABLE  -> applyRevert restores 0xE004 to the configured default; the
- *               heartbeat stops, so 0xE004 stays put.
+ *   CREATION   -> `ensureStorEdgeControlBlock()` unconditionally creates the
+ *                 `StorEdgeControlBlock` channel and all nine states with
+ *                 `read=true, write=true`, before any poll cycle runs.
+ *   POLL-READ  -> the mock device is seeded with live values for all nine
+ *                 registers (uint16 via `store.set`, float32 via
+ *                 `store.setFloat32le`, the one uint32 via `store.setUint32le`);
+ *                 both read spans (`0xE004`x9, `0xE00D`x5) are read via the real
+ *                 client, decoded, and written via `writeStorEdgeValue` — every
+ *                 state ends up with the seeded value and `ack=true`.
+ *   IN-RANGE   -> an in-range write on a uint16 def (`storageControlMode`) and a
+ *                 float32 def (`remoteControlDischargeLimit`) dispatches exactly
+ *                 one correctly-encoded FC06/FC16 write and acks with the
+ *                 written value.
+ *   OUT-RANGE  -> an out-of-range candidate never reaches the device (zero new
+ *                 writes land in the RegisterStore) and issues no ack.
+ *   DISCONNECT -> a write attempted after the client is closed rejects
+ *                 non-fatally (caught, matching main.ts's try/catch), lands no
+ *                 write, and issues no ack.
  *
- * Requirements covered: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.2, 11.1, 11.2, 11.3, 11.4,
- * 12.1, 12.3, 12.4, 12.5.
+ * Requirements covered: 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.3, 6.4, 7.1, 7.2, 7.3,
+ * 7.4, 7.5, 8.1, 8.2, 8.3.
  */
-describe('Feature: storedge-battery-control, integration: control lifecycle', () => {
+describe('Feature: storedge-battery-control, integration: StorEdgeControlBlock', () => {
     let server: MockServer | undefined;
     let client: ModbusClient | undefined;
     const port = allocPort();
     let store: RegisterStore;
-
-    // Control-register addresses under test (from the production defs).
-    const ADDR_E000 = EXPORT_CONFIG.address; // 0xE000 export config
-    const ADDR_E004 = STORAGE_CONTROL_MODE.address; // 0xE004 storage control mode
-    const ADDR_E00A = STORAGE_DEFAULT_MODE.address; // 0xE00A storage default (fallback) mode
-    const ADDR_E00B = REMOTE_CONTROL_COMMAND_TIMEOUT.address; // 0xE00B command timeout (uint32le)
-    const ADDR_E00D = REMOTE_CONTROL_COMMAND_MODE.address; // 0xE00D remote control command mode
-    const ADDR_E010 = REMOTE_CONTROL_DISCHARGE_LIMIT.address; // 0xE010 discharge limit (float32le)
-
-    /** decode the two words stored at 0xE010 through the real float32le decoder. */
-    const readLimit = (): number | string | null =>
-        decodeRegisters([store.get(ADDR_E010), store.get(ADDR_E010 + 1)], 'float32le');
-
-    /** decode the two words stored at 0xE00B through the real uint32le decoder. */
-    const readTimeout = (): number | string | null =>
-        decodeRegisters([store.get(ADDR_E00B), store.get(ADDR_E00B + 1)], 'uint32le');
+    let adapter: MockAdapter;
+    let sm: StateManager;
 
     before(async function () {
         this.timeout(15000);
         store = new RegisterStore();
         server = await startServer(store, port);
+        client = new ModbusClient();
+        await client.connect(HOST, port, 1);
+        expect(client.isConnected()).to.equal(true);
+        adapter = new MockAdapter();
+        sm = new StateManager(adapter);
     });
 
     after(async function () {
@@ -1022,115 +1031,172 @@ describe('Feature: storedge-battery-control, integration: control lifecycle', ()
         await closeServer(server);
     });
 
-    it('runs the documented initial-config then heartbeats and reverts on disable (Req 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10.2, 11.1, 11.2, 11.3, 11.4, 12.1, 12.3, 12.4, 12.5)', async function () {
+    /**
+     * Mirrors main.ts's `handleStorEdgeControlChange` dispatch inline against the
+     * real `client`/`sm` under test: range-validates, then writes FC06 (uint16) or
+     * FC16 (float32le/uint32le encoding), then acks on success. Failures are
+     * caught and swallowed (non-fatal), matching production.
+     *
+     * @param name - StorEdgeControlBlock register leaf name.
+     * @param value - Candidate value from a (simulated) state change.
+     */
+    async function dispatch(name: string, value: number): Promise<void> {
+        const def = findStorEdgeControlDef(name)!;
+        if (!Number.isFinite(value) || value < def.min || value > def.max) {
+            return; // rejected: no write, no ack, previous value retained
+        }
+        try {
+            if (def.kind === 'uint16') {
+                await client!.writeSingleRegister(def.address, value);
+            } else if (def.kind === 'float32') {
+                await client!.writeMultipleRegisters(def.address, encodeFloat32le(value));
+            } else {
+                await client!.writeMultipleRegisters(def.address, encodeUint32le(value));
+            }
+            await sm.ackStorEdgeWrite(def, value);
+        } catch {
+            // non-fatal: no ack on failure, previous acked value retained
+        }
+    }
+
+    it('creates the StorEdgeControlBlock channel and all nine states with write=true before any poll (Req 8.1, 8.2, 8.3)', async function () {
         this.timeout(15000);
 
-        client = new ModbusClient();
-        await client.connect(HOST, port, 1);
-        expect(client.isConnected()).to.equal(true);
+        await sm.ensureStorEdgeControlBlock();
 
-        const writer = new ModbusControlWriter(client);
+        expect(adapter.objects.has('StorEdgeControlBlock'), 'StorEdgeControlBlock channel').to.equal(true);
+        expect(STOREDGE_CONTROL_REGISTERS.length).to.equal(9);
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const id = `StorEdgeControlBlock.${def.name}`;
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object exists`).to.not.equal(undefined);
+            const common = obj!.common as ioBroker.StateCommon;
+            expect(common.write, `${id} write=true`).to.equal(true);
+            expect(common.read, `${id} read=true`).to.equal(true);
+        }
+    });
 
-        // Deterministic consumption inputs: house/wallbox samples feed the pure
-        // compute helper so the limits are derived exactly as production would.
-        const maxAgeSeconds = 120;
-        const maxDischargeLimit = 5000;
-        const nowMs = Date.now();
-        const sample = (val: number): SourceSample => ({ val, ts: nowMs });
+    it('a poll-read decodes both spans and updates all nine states with live values, ack=true (Req 5.1, 5.2, 5.3)', async function () {
+        this.timeout(15000);
 
-        const defaultFallbackMode = 1; // Maximize Self Consumption
-        const commandTimeout = 120; // seconds; renewed each heartbeat cycle
+        // Seed every one of the nine registers with a concrete, distinct value.
+        const seeded = new Map<string, number>([
+            ['storageControlMode', 2],
+            ['storageAcChargePolicy', 1],
+            ['storageAcChargeLimit', 1234.5],
+            ['storageBackupReservedSetting', 42.5],
+            ['storageChargeDischargeDefaultMode', 3],
+            ['remoteControlCommandTimeout', 3600],
+            ['remoteControlCommandMode', 4],
+            ['remoteControlChargeLimit', 2500.25],
+            ['remoteControlDischargeLimit', 1500.75],
+        ]);
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const value = seeded.get(def.name)!;
+            if (def.kind === 'uint16') {
+                store.set(def.address, value);
+            } else if (def.kind === 'float32') {
+                store.setFloat32le(def.address, value);
+            } else {
+                store.setUint32le(def.address, value);
+            }
+        }
 
-        // --- ENABLE: the ordered six-write initial-config sequence ----------
-        // limit0 = min(max(house - wallbox, 0), max) = min(max(3000-500,0),5000) = 2500
-        const limit0 = computeDischargeLimit(sample(3000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
-        expect(limit0).to.equal(2500);
-        await writer.applyEnable(limit0, { defaultFallbackMode, commandTimeout });
+        // Two contiguous read spans, exactly as pollOnce's StorEdgeControlBlock tail.
+        const wordsA = await client!.readHoldingRegisters(0xe004, 9); // 0xE004..0xE00C
+        const wordsB = await client!.readHoldingRegisters(0xe00d, 5); // 0xE00D..0xE011
 
-        // 0xE000=0, 0xE004=4, 0xE00A=fallback, 0xE00D=4 (all FC06 single words).
-        expect(store.get(ADDR_E000), '0xE000 export config = 0 after enable').to.equal(0);
-        expect(store.get(ADDR_E004), '0xE004 storage control mode = 4 after enable').to.equal(4);
-        expect(store.get(ADDR_E00A), '0xE00A fallback mode after enable').to.equal(defaultFallbackMode);
-        expect(store.get(ADDR_E00D), '0xE00D command mode = 4 after enable').to.equal(4);
-        // 0xE00B command timeout round-trips through the real uint32le encode+decode.
-        expect(readTimeout(), '0xE00B decodes to commandTimeout after enable').to.equal(commandTimeout);
-        // 0xE010 round-trips through the real float32le encode+write+decode.
-        expect(readLimit(), '0xE010 decodes to limit0 after enable').to.equal(limit0);
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const span = def.address < 0xe00d ? { words: wordsA, base: 0xe004 } : { words: wordsB, base: 0xe00d };
+            const offset = def.address - span.base;
+            const words = span.words.slice(offset, offset + def.length);
+            const datatype = def.kind === 'uint16' ? 'uint16' : def.kind === 'float32' ? 'float32le' : 'uint32le';
+            const decoded = decodeRegisters(words, datatype) as number;
+            await sm.writeStorEdgeValue(def, decoded);
+        }
 
-        // Each initial-config register written exactly once by enable.
-        expect(store.writeCount(ADDR_E000), '0xE000 written once by enable').to.equal(1);
-        expect(store.writeCount(ADDR_E004), '0xE004 written once by enable').to.equal(1);
-        expect(store.writeCount(ADDR_E00A), '0xE00A written once by enable').to.equal(1);
-        expect(store.writeCount(ADDR_E00D), '0xE00D written once by enable').to.equal(1);
-        expect(store.writeCount(ADDR_E00B), '0xE00B written once by enable').to.equal(1);
-        expect(store.writeCount(ADDR_E010), '0xE010 written once by enable').to.equal(1);
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const id = `StorEdgeControlBlock.${def.name}`;
+            const expected = seeded.get(def.name)!;
+            const state = adapter.states.get(id);
+            expect(state, `${id} state written`).to.not.equal(undefined);
+            expect(state!.ack, `${id} ack=true`).to.equal(true);
+            if (def.kind === 'float32') {
+                expect(Math.abs((state!.val as number) - expected), `${id} float32 value`).to.be.lessThan(0.01);
+            } else {
+                expect(state!.val, `${id} value`).to.equal(expected);
+            }
+        }
+    });
 
-        let lastWritten: number | undefined = limit0;
+    it('an in-range uint16 write dispatches FC06, lands the raw value, and acks with the written value (Req 6.4, 7.1, 7.2, 7.3)', async function () {
+        this.timeout(15000);
+        const def = findStorEdgeControlDef('storageControlMode')!; // 0xE004, uint16, 0..4
+        const before = store.writeCount(def.address);
+        const value = 3; // in [0, 4]
 
-        // --- CYCLE A: limit changes (2500 -> 1500) --------------------------
-        const limitA = computeDischargeLimit(sample(2000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
-        expect(limitA).to.equal(1500);
-        expect(limitA).to.not.equal(limit0);
+        await dispatch(def.name, value);
 
-        const e000WritesBeforeA = store.writeCount(ADDR_E000);
-        const e004WritesBeforeA = store.writeCount(ADDR_E004);
-        const e00aWritesBeforeA = store.writeCount(ADDR_E00A);
-        const e00bWritesBeforeA = store.writeCount(ADDR_E00B);
-        const e00dWritesBeforeA = store.writeCount(ADDR_E00D);
-        const e010WritesBeforeA = store.writeCount(ADDR_E010);
+        expect(store.writeCount(def.address), 'exactly one new write').to.equal(before + 1);
+        expect(store.get(def.address), 'raw uint16 landed unencoded').to.equal(value);
+        const acks = adapter.writes.filter(w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true);
+        expect(acks[acks.length - 1].val, 'last ack carries the written value').to.equal(value);
+    });
 
-        lastWritten = await writer.heartbeat(limitA, lastWritten, commandTimeout);
+    it('an in-range float32 write dispatches FC16 with float32le encoding and acks with the written value (Req 6.4, 7.1, 7.2, 7.3)', async function () {
+        this.timeout(15000);
+        const def = findStorEdgeControlDef('remoteControlDischargeLimit')!; // 0xE010, float32, 0..BATTERY_MAX_POWER_W
+        const before = store.writeCount(def.address);
+        const value = 2222; // in range
 
-        // 0xE00B renewed + 0xE00D re-asserted unconditionally (Req 10.2, 11.1, 11.2).
-        expect(readTimeout(), '0xE00B still decodes to commandTimeout in cycle A').to.equal(commandTimeout);
-        expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle A').to.equal(4);
-        expect(store.writeCount(ADDR_E00B), '0xE00B renewed in cycle A').to.equal(e00bWritesBeforeA + 1);
-        expect(store.writeCount(ADDR_E00D), '0xE00D re-asserted in cycle A').to.equal(e00dWritesBeforeA + 1);
-        // Changed limit => 0xE010 rewritten (Req 8.2, 11.3).
-        expect(readLimit(), '0xE010 decodes to limitA').to.equal(limitA);
-        expect(store.writeCount(ADDR_E010), '0xE010 rewritten on change').to.equal(e010WritesBeforeA + 1);
-        expect(lastWritten).to.equal(limitA);
-        // Initial-config registers NEVER re-written by the heartbeat (Req 11.4, 12.5).
-        expect(store.writeCount(ADDR_E000), '0xE000 untouched in cycle A').to.equal(e000WritesBeforeA);
-        expect(store.writeCount(ADDR_E004), '0xE004 untouched in cycle A').to.equal(e004WritesBeforeA);
-        expect(store.writeCount(ADDR_E00A), '0xE00A untouched in cycle A').to.equal(e00aWritesBeforeA);
+        await dispatch(def.name, value);
 
-        // --- CYCLE B: limit unchanged (limitB == limitA) --------------------
-        const limitB = computeDischargeLimit(sample(2000), sample(500), nowMs, maxAgeSeconds, maxDischargeLimit);
-        expect(limitB).to.equal(limitA);
+        expect(store.writeCount(def.address), 'exactly one new write').to.equal(before + 1);
+        const rawWords = [store.get(def.address), store.get(def.address + 1)];
+        expect(rawWords, 'raw words match encodeFloat32le').to.deep.equal(encodeFloat32le(value));
+        const decoded = decodeRegisters(rawWords, 'float32le') as number;
+        expect(Math.abs(decoded - value), 'round-trips back to the written value').to.be.lessThan(0.01);
+        const acks = adapter.writes.filter(w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true);
+        expect(acks[acks.length - 1].val, 'last ack carries the written value').to.equal(value);
+    });
 
-        const e000WritesBeforeB = store.writeCount(ADDR_E000);
-        const e004WritesBeforeB = store.writeCount(ADDR_E004);
-        const e00aWritesBeforeB = store.writeCount(ADDR_E00A);
-        const e00bWritesBeforeB = store.writeCount(ADDR_E00B);
-        const e00dWritesBeforeB = store.writeCount(ADDR_E00D);
-        const e010WritesBeforeB = store.writeCount(ADDR_E010);
+    it('an out-of-range write is rejected before any Modbus call: zero new writes, no ack (Req 6.1, 6.2, 6.3)', async function () {
+        this.timeout(15000);
+        const def = findStorEdgeControlDef('storageControlMode')!; // 0xE004, uint16, 0..4
+        const before = store.writeCount(def.address);
+        const acksBefore = adapter.writes.filter(
+            w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true,
+        ).length;
 
-        lastWritten = await writer.heartbeat(limitB, lastWritten, commandTimeout);
+        await dispatch(def.name, def.max + 1); // out of range
 
-        // 0xE00B renewed + 0xE00D re-asserted again (Req 10.2, 11.1, 11.2).
-        expect(readTimeout(), '0xE00B still decodes to commandTimeout in cycle B').to.equal(commandTimeout);
-        expect(store.get(ADDR_E00D), '0xE00D re-asserted in cycle B').to.equal(4);
-        expect(store.writeCount(ADDR_E00B), '0xE00B renewed in cycle B').to.equal(e00bWritesBeforeB + 1);
-        expect(store.writeCount(ADDR_E00D), '0xE00D re-asserted in cycle B').to.equal(e00dWritesBeforeB + 1);
-        // Unchanged limit => 0xE010 NOT rewritten, value unchanged (Req 8.2, 11.3).
-        expect(readLimit(), '0xE010 still decodes to limitA').to.equal(limitA);
-        expect(store.writeCount(ADDR_E010), '0xE010 skipped when unchanged').to.equal(e010WritesBeforeB);
-        expect(lastWritten).to.equal(limitA);
-        // Initial-config registers still untouched by the heartbeat (Req 11.4, 12.5).
-        expect(store.writeCount(ADDR_E000), '0xE000 untouched in cycle B').to.equal(e000WritesBeforeB);
-        expect(store.writeCount(ADDR_E004), '0xE004 untouched in cycle B').to.equal(e004WritesBeforeB);
-        expect(store.writeCount(ADDR_E00A), '0xE00A untouched in cycle B').to.equal(e00aWritesBeforeB);
+        expect(store.writeCount(def.address), 'no new write landed').to.equal(before);
+        const acksAfter = adapter.writes.filter(
+            w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true,
+        ).length;
+        expect(acksAfter, 'no new ack recorded').to.equal(acksBefore);
+    });
 
-        // --- DISABLE / REVERT ----------------------------------------------
-        await writer.applyRevert(defaultFallbackMode);
-        expect(store.get(ADDR_E004), '0xE004 reverted to default on disable').to.equal(defaultFallbackMode);
+    it('a write attempted while disconnected rejects non-fatally: zero new writes, no ack (Req 7.4)', async function () {
+        this.timeout(15000);
+        const def = findStorEdgeControlDef('storageAcChargePolicy')!; // 0xE005, uint16, 0..3
+        const before = store.writeCount(def.address);
+        const acksBefore = adapter.writes.filter(
+            w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true,
+        ).length;
 
-        // Heartbeat is no longer driven after revert: the store retains the reverted
-        // value because no further heartbeat calls are made.
-        const e004WritesAfterRevert = store.writeCount(ADDR_E004);
-        // (No writer calls here — mirrors main.ts stopping the heartbeat on disable.)
-        expect(store.get(ADDR_E004), '0xE004 stays at default with heartbeat stopped').to.equal(defaultFallbackMode);
-        expect(store.writeCount(ADDR_E004), 'no further 0xE004 writes after revert').to.equal(e004WritesAfterRevert);
+        await client!.close();
+        expect(client!.isConnected(), 'client is disconnected').to.equal(false);
+
+        await dispatch(def.name, 1); // in-range, but disconnected
+
+        expect(store.writeCount(def.address), 'no new write landed while disconnected').to.equal(before);
+        const acksAfter = adapter.writes.filter(
+            w => w.id === `StorEdgeControlBlock.${def.name}` && w.ack === true,
+        ).length;
+        expect(acksAfter, 'no new ack recorded while disconnected').to.equal(acksBefore);
+
+        // Reconnect so the shared `after` hook's close() is a clean no-op-ish call.
+        await client!.connect(HOST, port, 1);
     });
 });

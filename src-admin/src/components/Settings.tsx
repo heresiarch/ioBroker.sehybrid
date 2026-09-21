@@ -4,10 +4,6 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Alert from '@mui/material/Alert';
 import Table from '@mui/material/Table';
 import TableHead from '@mui/material/TableHead';
 import TableBody from '@mui/material/TableBody';
@@ -18,11 +14,8 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import SearchIcon from '@mui/icons-material/Search';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
 
-import { DialogSelectID, I18n, type AdminConnection, type IobTheme } from '@iobroker/adapter-react-v5';
+import { I18n, type AdminConnection, type IobTheme } from '@iobroker/adapter-react-v5';
 
 // Shared, pure config validation reused by the adapter and this admin form.
 // We import the SAME validateConfig / sunspec helpers from the adapter's src/lib
@@ -77,14 +70,6 @@ const styles: Record<string, React.CSSProperties> = {
         padding: 0,
         display: 'block',
     },
-    stateIdFieldWrapper: {
-        display: 'inline-flex',
-        alignItems: 'flex-end',
-        marginRight: 20,
-    },
-    stateIdBrowseButton: {
-        marginBottom: 4,
-    },
 };
 
 type TestConnectionResponse =
@@ -110,25 +95,14 @@ type TestStatus =
     | { kind: 'success'; manufacturer?: string; model?: string }
     | { kind: 'failure'; message: string };
 
-/** Which consumption source the object-id picker dialog is currently open for. */
-type SelectIdSource = 'house' | 'wallbox';
-
 interface SettingsState {
     testStatus: TestStatus;
-    /** The source whose object-id picker is open, or null when the dialog is closed. */
-    selectIdFor: SelectIdSource | null;
 }
-
-/** Maps a picker source to the native attribute it edits and its dialog title. */
-const SELECT_ID_SOURCES: Record<SelectIdSource, { attr: string; title: string }> = {
-    house: { attr: 'houseConsumptionStateId', title: 'Select consumption state' },
-    wallbox: { attr: 'wallboxConsumptionStateId', title: 'Select consumption state' },
-};
 
 class Settings extends React.Component<SettingsProps, SettingsState> {
     constructor(props: SettingsProps) {
         super(props);
-        this.state = { testStatus: { kind: 'idle' }, selectIdFor: null };
+        this.state = { testStatus: { kind: 'idle' } };
     }
 
     /**
@@ -152,15 +126,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
             port: this.toNumber(native.port),
             unitId: this.toNumber(native.unitId),
             pollInterval: this.toNumber(native.pollInterval),
-            // Control settings (validated only when present; source ids required when
-            // controlEnabled is true). Numeric fields are coerced so validateConfig's
-            // integer/positive bounds apply and drive per-field error/helperText.
-            controlEnabled: !!native.controlEnabled,
-            defaultStorageControlMode: this.toNumber(native.defaultStorageControlMode),
-            houseConsumptionStateId: native.houseConsumptionStateId,
-            wallboxConsumptionStateId: native.wallboxConsumptionStateId,
-            maxDischargeLimit: this.toNumber(native.maxDischargeLimit),
-            sourceMaxAgeSeconds: this.toNumber(native.sourceMaxAgeSeconds),
         };
     }
 
@@ -380,192 +345,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
         );
     }
 
-    /**
-     * Text input for a foreign state id, bound to a native field, plus a browse
-     * button that opens the object-browser picker for the given source. Manual
-     * entry still works; the button only fills the field.
-     *
-     * @param title Field label (translation key).
-     * @param attr Native attribute the field is bound to.
-     * @param hasError Whether the field currently has a validation error.
-     * @param source Which picker source this field represents (drives the dialog).
-     */
-    private renderStateIdField(
-        title: string,
-        attr: string,
-        hasError: boolean,
-        source: SelectIdSource,
-    ): React.JSX.Element {
-        const socketAvailable = !!this.props.socket;
-        return (
-            <div style={styles.stateIdFieldWrapper}>
-                <TextField
-                    variant="standard"
-                    label={I18n.t(title)}
-                    style={{ ...styles.input, ...styles.controlElement, marginRight: 0 }}
-                    value={this.props.native[attr] ?? ''}
-                    type="text"
-                    error={hasError}
-                    helperText={hasError ? I18n.t('Source id required') : ''}
-                    onChange={e => this.props.onChange(attr, e.target.value)}
-                    margin="normal"
-                />
-                <Tooltip title={I18n.t('Browse')}>
-                    <span>
-                        <IconButton
-                            size="small"
-                            style={styles.stateIdBrowseButton}
-                            aria-label={I18n.t('Browse')}
-                            disabled={!socketAvailable}
-                            onClick={() => this.setState({ selectIdFor: source })}
-                        >
-                            <SearchIcon />
-                        </IconButton>
-                    </span>
-                </Tooltip>
-            </div>
-        );
-    }
-
-    /**
-     * Render the object-browser picker dialog when open. Only rendered when a
-     * source is selected and both socket and theme are available, so the dialog
-     * never mounts without its required props.
-     */
-    private renderSelectIdDialog(): React.JSX.Element | null {
-        const { selectIdFor } = this.state;
-        const { socket, theme } = this.props;
-        if (!selectIdFor || !socket || !theme) {
-            return null;
-        }
-
-        const { attr, title } = SELECT_ID_SOURCES[selectIdFor];
-        const selected = this.props.native[attr] ?? '';
-
-        return (
-            <DialogSelectID
-                socket={socket}
-                theme={theme}
-                types={['state']}
-                selected={selected}
-                lang={I18n.getLanguage()}
-                title={I18n.t(title)}
-                onOk={selectedId => {
-                    const chosen = Array.isArray(selectedId) ? selectedId[0] : (selectedId ?? '');
-                    this.props.onChange(attr, chosen);
-                    this.setState({ selectIdFor: null });
-                }}
-                onClose={() => this.setState({ selectIdFor: null })}
-            />
-        );
-    }
-
-    /**
-     * Render the control settings section shown below the connection fields:
-     * the enable checkbox with the StorEdge portal warning, the default storage
-     * control mode select, the two consumption source id inputs, and the numeric
-     * discharge-limit / source-max-age fields. Per-field error/helperText is driven
-     * by the shared validateConfig via `errors`.
-     *
-     * @param errors Per-field validation errors from {@link errors}.
-     */
-    private renderControlSettings(errors: ReturnType<typeof validateConfig>['errors']): React.JSX.Element {
-        const { native } = this.props;
-        const modeValue = native.defaultStorageControlMode ?? '';
-        const modeOptions: { value: number; key: string }[] = [
-            { value: 0, key: 'Mode 0 Disabled' },
-            { value: 1, key: 'Mode 1 Maximize Self Consumption' },
-            { value: 2, key: 'Mode 2 Time of Use' },
-            { value: 3, key: 'Mode 3 Backup Only' },
-            { value: 4, key: 'Mode 4 Remote Control' },
-        ];
-
-        return (
-            <div style={styles.tableWrapper}>
-                <Typography
-                    variant="h6"
-                    style={{ padding: 8 }}
-                >
-                    {I18n.t('Battery control')}
-                </Typography>
-
-                <div>
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={!!native.controlEnabled}
-                                onChange={e => this.props.onChange('controlEnabled', e.target.checked)}
-                            />
-                        }
-                        label={I18n.t('Enable battery control')}
-                    />
-                </div>
-
-                <Alert
-                    severity="warning"
-                    style={styles.controlElement}
-                >
-                    {I18n.t('StorEdge portal warning')}
-                </Alert>
-
-                <div>
-                    <TextField
-                        select
-                        variant="standard"
-                        label={I18n.t('Default Storage Control Mode')}
-                        style={{ ...styles.input, ...styles.controlElement }}
-                        value={modeValue}
-                        error={!!errors.defaultStorageControlMode}
-                        helperText={errors.defaultStorageControlMode ? I18n.t('Invalid default control mode') : ''}
-                        onChange={e => this.props.onChange('defaultStorageControlMode', Number(e.target.value))}
-                        margin="normal"
-                    >
-                        {modeOptions.map(o => (
-                            <MenuItem
-                                key={o.value}
-                                value={o.value}
-                            >
-                                {`${o.value} ${I18n.t(o.key)}`}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-                </div>
-
-                <div>
-                    {this.renderStateIdField(
-                        'House consumption state',
-                        'houseConsumptionStateId',
-                        !!errors.houseConsumptionStateId,
-                        'house',
-                    )}
-                    {this.renderStateIdField(
-                        'Wallbox consumption state',
-                        'wallboxConsumptionStateId',
-                        !!errors.wallboxConsumptionStateId,
-                        'wallbox',
-                    )}
-                </div>
-
-                <div>
-                    {this.renderNumberField(
-                        'Max discharge limit (W)',
-                        'Invalid max discharge limit',
-                        'maxDischargeLimit',
-                        !!errors.maxDischargeLimit,
-                    )}
-                    {this.renderNumberField(
-                        'Source max age (s)',
-                        'Invalid source max age',
-                        'sourceMaxAgeSeconds',
-                        !!errors.sourceMaxAgeSeconds,
-                    )}
-                </div>
-
-                {this.renderSelectIdDialog()}
-            </div>
-        );
-    }
-
     render(): React.JSX.Element {
         const errors = this.errors();
         const anyInvalid = Object.keys(errors).length > 0;
@@ -598,8 +377,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                     </Button>
                     {this.renderTestStatus()}
                 </div>
-
-                {this.renderControlSettings(errors)}
 
                 {this.renderValueTable()}
             </form>
