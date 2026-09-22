@@ -1,0 +1,10 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "fast-check counterexample: [{\"isInstall\":true,\"sourcePresent\":false,\"dependencyStyle\":false}] — simulateInstall returned npmOperationsRun=1 (expected 0). Root cause: package.json scripts.postinstall = \"node scripts/postinstall.js\", which runs `npm ci`/`npm install` against src-admin on install. Unit assertion also failed: scripts.postinstall expected undefined, got 'node scripts/postinstall.js'. Failure confirms the bug exists on unfixed code.",
+      "lastRunTimestamp": 1790092997901
+    }
+  },
+  "executionHistory": {}
+}

@@ -1,8 +1,34 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "news": {
+      "1.0.2": {
+        "en": "Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)\nThe CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script",
+        "de": "Das npm-Skript `install:src-admin` aus package.json entfernt; es enthält jetzt keine Installationsskripte (behebt Problem #6)\nDer CI-Lint-Job installiert Admin-UI-Abhängigkeiten im Workflow statt per package.json-Skript",
+        "ru": "Удален сценарий npm `install:src-admin` из package.json; теперь пакет вообще не содержит сценариев, связанных с установкой (устранена проблема #6)\nЗадание CI lint устанавливает зависимости пользовательского интерфейса администратора непосредственно в рабочем процессе, а не с помощью скрипта package.json.",
+        "pt": "Removido o script npm `install:src-admin` do package.json; o pacote agora não contém nenhum script de instalação (resolve o problema #6)\nO CI lint job instala dependências de admin no fluxo de trabalho em vez de usar o script package.json",
+        "nl": "Het npm-script `install:src-admin` is verwijderd uit package.json; het pakket bevat nu helemaal geen scripts die verband houden met de installatie (lost probleem #6 op)\nDe CI lint-taak installeert afhankelijkheden van de beheerdersinterface inline in de workflow in plaats van via een package.json-script",
+        "fr": "Le script npm `install:src-admin` a été supprimé de package.json ; il ne contient plus aucun script lié à l'installation (résolution du problème #6)\nLe job CI lint installe les dépendances de l'interface d'administration en ligne au lieu d'utiliser un script package.json",
+        "it": "Rimosso lo script npm `install:src-admin` da package.json; ora non contiene script relativi all'installazione (risolve il problema #6)\nIl CI lint job installa le dipendenze admin UI in linea anziché tramite uno script package.json",
+        "es": "Se ha eliminado el script npm `install:src-admin` de package.json; el paquete ahora no contiene ningún guion relacionado con la instalación (aborda el problema #6)\nEl trabajo CI lint instala las dependencias de la UI de administrador en línea y no mediante un script package.json",
+        "pl": "Usunięto skrypt npm `install:src-admin` z package.json; pakiet nie zawiera teraz żadnych skryptów związanych z instalacją (rozwiązuje problem #6)\nZadanie CI lint instaluje zależności interfejsu administratora wbudowane w przepływie pracy zamiast za pośrednictwem skryptu package.json",
+        "uk": "Вилучено скрипт npm `install:src-admin` з package.json; пакунок тепер взагалі не містить скриптів, пов'язаних з установкою (вирішує проблему #6)\nЗавдання CI lint встановлює залежності інтерфейсу адміністратора в робочий процес, а не через скрипт package.json",
+        "zh-cn": "从 package.json 中删除了 `install: src-admin` npm 脚本；该软件包现在根本不包含与安装相关的脚本（解决了问题 #6）\nCI lint 作业在工作流程中内联安装管理界面依赖项，而不是通过 package.json 脚本安装"
+      },
+      "1.0.1": {
+        "en": "Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems\nAdmin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook",
+        "de": "Der „Postinstall“ -Hook, der NPM-Operationen ausführte, wurde entfernt; der Adapter installiert keine Endbenutzersysteme mehr\nAdmin-UI-Abhängigkeiten werden jetzt nur beim Build (Dev/CI) gebootet, nicht per Paket-Lifecycle-Hook",
+        "ru": "Удален хук `postinstall`, который запускал операции npm при установке; адаптер больше не устанавливает никаких зависимостей разработки в системах конечных пользователей\nЗависимости пользовательского интерфейса администратора теперь загружаются только во время сборки (dev/CI), а не с помощью метода жизненного цикла пакета",
+        "pt": "Removido o gancho `postinstall` que executava o npm; o adaptador não instala mais dependências de desenvolvimento em sistemas finais\nAgora, as dependências do Admin UI só são inicializadas durante a compilação (Dev/CI), não por meio de um pacote",
+        "nl": "De `postinstall` hook verwijderd die npm-bewerkingen uitvoerde tijdens de installatie; de adapter installeert geen ontwikkelingsafhankelijkheden meer op systemen van eindgebruikers\nDe afhankelijkheden van de gebruikersinterface van de beheerder worden nu alleen tijdens de build opgestart (Dev/CI), niet via een hook voor de levenscyclus van een pakket",
+        "fr": "Suppression du hook « postinstall » qui exécutait npm lors de l'installation ; l'adaptateur n'installe plus de dépendances de développement sur les systèmes des utilisateurs\nLes dépendances de l'interface d'administration ne sont démarrées que lors de la compilation (Dev/CI)",
+        "it": "Rimosso l'hook `postinstall` che eseguiva npm all'installazione; l'adattatore non installa più dipendenze di sviluppo sui sistemi degli utenti finali\nLe dipendenze Admin UI ora vengono avviate solo durante la build (dev/CI), non tramite un package lifecycle hook",
+        "es": "Se ha eliminado el enlace «postinstalación» que ejecutaba npm en la instalación; el adaptador ya no instala ninguna dependencia de desarrollo en los sistemas de usuario final\nLas dependencias de la UI de administrador ahora solo se inician durante la creación (dev/CI), no mediante un enlace de ciclo de vida",
+        "pl": "Usunięto hak „postinstall”, który uruchamiał operacje npm podczas instalacji; adapter nie instaluje już żadnych zależności programistycznych na systemach użytkownika końcowego\nZależności interfejsu administratora są teraz uruchamiane tylko podczas kompilacji (Dev/CI), a nie za pomocą haczyka cyklu życia pakietu",
+        "uk": "Вилучено хук `postinstall`, який виконував операції npm під час встановлення; адаптер більше не встановлює жодних залежностей розробки на системах кінцевого користувача\nЗалежності від інтерфейсу адміністратора тепер завантажуються лише під час збирання (Dev/CI), а не через хук життєвого циклу пакета",
+        "zh-cn": "移除了在安装时运行 npm 操作的 postinstall 挂钩；适配器不再在最终用户系统上安装任何开发依赖项\n管理界面依赖项现在只能在构建期间启动 (dev/CI)，而不是通过包生命周期挂钩引导"
+      },
       "1.0.0": {
         "en": "Replaced the consumption-based battery control (enable switch, computed discharge limit, heartbeat) with an always-on `StorEdgeControlBlock` channel exposing all nine Global StorEdge Control Block registers, read and write, with no admin configuration\nDocumented the new `StorEdgeControlBlock` channel in the README",
         "de": "Ersetzte die verbrauchsabhängige Batteriesteuerung (Freigabeschalter, berechnete Entladungsgrenze, Takt) durch einen ständig aktiven `StoEdgeControlBlock`-Kanal, der alle neun GLB-Register anzeigt, lesen und schreiben, ohne Admin-Konfiguration\nDokumentiert den neuen Kanal StoredgeControlBlock in README",

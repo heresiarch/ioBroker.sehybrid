@@ -32,6 +32,11 @@ jobs:
                   # Uncomment the following line if your adapter cannot be installed using 'npm ci'
                   # install-command: 'npm install'
                   lint: true
+                  # src-admin/ has its own package.json/node_modules. The type-aware
+                  # lint pass (npm run lint -> lint --prefix src-admin) needs those deps.
+                  # Previously bootstrapped by the (now removed) postinstall hook; install
+                  # them explicitly right before linting instead of via a lifecycle hook.
+                  lint-command: '(npm ci --prefix src-admin || npm install --prefix src-admin) && npm run lint'
 
     # Runs adapter tests on all supported node versions and OSes
     adapter-tests:
