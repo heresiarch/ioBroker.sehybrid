@@ -7,7 +7,8 @@
   },
   "contributors": [
     {
-      "name": "René Meyer"
+      "name": "René Meyer",
+      "email": "heresiarch@online.de"
     }
   ],
   "homepage": "https://github.com/heresiarch/ioBroker.sehybrid",
