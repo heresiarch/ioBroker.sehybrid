@@ -19,6 +19,11 @@ updates:
     versioning-strategy: 'increase'
     cooldown:
       default-days: !!int '7'
+    ignore:
+      # @types/node must track the Node.js runtime, not jump majors on its own.
+      - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
 
   - package-ecosystem: 'github-actions'
     directory: '/'
