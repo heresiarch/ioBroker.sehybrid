@@ -10,7 +10,7 @@
 
 import { expect } from 'chai';
 import fc from 'fast-check';
-import type { IModbusClient, ModbusReadOptions } from './modbus-client';
+import type { IModbusClient, ModbusReadOptions, ModbusWriteOptions } from './modbus-client';
 import { MAX_REGISTERS_PER_READ } from './modbus-client';
 import {
     BATTERY_MAP,
@@ -120,6 +120,14 @@ class MockClient implements IModbusClient {
 
     readInputRegisters(address: number, length: number, _opts?: ModbusReadOptions): Promise<number[]> {
         return Promise.resolve(this.readAt(address, length));
+    }
+
+    writeSingleRegister(_address: number, _value: number, _opts?: ModbusWriteOptions): Promise<void> {
+        return Promise.resolve();
+    }
+
+    writeMultipleRegisters(_address: number, _values: number[], _opts?: ModbusWriteOptions): Promise<void> {
+        return Promise.resolve();
     }
 
     isConnected(): boolean {

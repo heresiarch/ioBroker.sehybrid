@@ -21,6 +21,7 @@ export const CONFIG_BOUNDS = {
 /** Fields that {@link validateConfig} can report an error for. */
 export type ConfigField = 'host' | 'port' | 'unitId' | 'pollInterval';
 
+/** Result of {@link validateConfig}: overall validity plus per-field error messages. */
 export interface ConfigValidationResult {
     /** True if and only if `errors` is empty. */
     valid: boolean;

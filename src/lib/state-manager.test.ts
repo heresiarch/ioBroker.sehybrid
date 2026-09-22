@@ -15,6 +15,7 @@ import { expect } from 'chai';
 import fc from 'fast-check';
 import type { ChannelPath, IStateManager, StateManagerAdapter } from './state-manager';
 import { StateManager } from './state-manager';
+import { STOREDGE_CONTROL_REGISTERS } from './storedge-control-map';
 import type { SunSpecRegisterDef } from './sunspec-map';
 import { getBatteryValueDefs, getInverterValueDefs, getMeterValueDefs, getValueDefs } from './sunspec-map';
 
@@ -413,6 +414,191 @@ describe('state-manager => StateManager', () => {
                 }),
                 { numRuns: 100 },
             );
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // Task 4.2 — Tests for the StorEdgeControlBlock channel/states
+    // (Req 8.1, 8.2, 8.4, 9.1, 9.2, 9.3)
+    //
+    // The nine write=true StorEdgeControlBlock states are created OUTSIDE the
+    // register-map read model by ensureStorEdgeControlBlock(). These tests assert
+    // the state/channel metadata (read/write, type, role, unit, min/max),
+    // idempotency, ack writes, and that no StorEdgeControlBlock id is ever
+    // produced by the SunSpec ensureState path (and vice versa).
+    // --------------------------------------------------------------------
+
+    describe('ensureStorEdgeControlBlock', () => {
+        /** Expected common.role per StorEdgeControlBlock register name (design section 3). */
+        const EXPECTED_ROLE: Record<string, string> = {
+            storageControlMode: 'level.mode',
+            storageAcChargePolicy: 'level.mode',
+            storageAcChargeLimit: 'value.energy',
+            storageBackupReservedSetting: 'value.fill',
+            storageChargeDischargeDefaultMode: 'level.mode',
+            remoteControlCommandTimeout: 'value.interval',
+            remoteControlCommandMode: 'level.mode',
+            remoteControlChargeLimit: 'value.power',
+            remoteControlDischargeLimit: 'value.power',
+        };
+
+        /** The exact nine StorEdgeControlBlock ids. */
+        const STOREDGE_IDS = STOREDGE_CONTROL_REGISTERS.map(def => `StorEdgeControlBlock.${def.name}`);
+
+        /**
+         * Read the created state common for a StorEdgeControlBlock id, asserting the
+         * object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function storEdgeCommon(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        it("creates the 'StorEdgeControlBlock' channel object with type 'channel'", async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            const channel = adapter.objects.get('StorEdgeControlBlock');
+            expect(channel, 'StorEdgeControlBlock channel').to.not.equal(undefined);
+            expect(channel!.type).to.equal('channel');
+        });
+
+        it('creates all nine states with read=true, write=true, correct type/role/unit/min/max', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const common = storEdgeCommon(adapter, `StorEdgeControlBlock.${def.name}`);
+                expect(common.type, `${def.name} type`).to.equal('number');
+                expect(common.read, `${def.name} read`).to.equal(true);
+                expect(common.write, `${def.name} write`).to.equal(true);
+                expect(common.role, `${def.name} role`).to.equal(EXPECTED_ROLE[def.name]);
+                expect(common.min, `${def.name} min`).to.equal(def.min);
+                expect(common.max, `${def.name} max`).to.equal(def.max);
+                if (def.unit !== undefined) {
+                    expect(common, `${def.name} should have unit`).to.have.property('unit', def.unit);
+                } else {
+                    expect(common, `${def.name} should not have unit`).to.not.have.property('unit');
+                }
+            }
+        });
+
+        it('writeStorEdgeValue / ackStorEdgeWrite write { val, ack: true } to the correct id', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            // Float def.
+            const floatDef = STOREDGE_CONTROL_REGISTERS.find(d => d.name === 'remoteControlDischargeLimit')!;
+            await manager.writeStorEdgeValue(floatDef, 3200);
+            const floatWrites = adapter.writesFor('StorEdgeControlBlock.remoteControlDischargeLimit');
+            expect(floatWrites.length).to.equal(1);
+            expect(floatWrites[0].val).to.equal(3200);
+            expect(floatWrites[0].ack).to.equal(true);
+
+            // uint16-like def.
+            const uintDef = STOREDGE_CONTROL_REGISTERS.find(d => d.name === 'storageControlMode')!;
+            await manager.ackStorEdgeWrite(uintDef, 2);
+            const uintWrites = adapter.writesFor('StorEdgeControlBlock.storageControlMode');
+            expect(uintWrites.length).to.equal(1);
+            expect(uintWrites[0].val).to.equal(2);
+            expect(uintWrites[0].ack).to.equal(true);
+        });
+
+        // ----------------------------------------------------------------
+        // Property 13: Unconditional and idempotent channel/state creation
+        // ----------------------------------------------------------------
+
+        it('Feature: storedge-battery-control, Property 13: Unconditional and idempotent channel/state creation', async () => {
+            // ensureStorEdgeControlBlock takes no config parameter, so "regardless of
+            // config" is inherently satisfied; this verifies pure idempotency across
+            // any number of repeated calls.
+            const repeatArb = fc.integer({ min: 1, max: 10 });
+
+            await fc.assert(
+                fc.asyncProperty(repeatArb, async n => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+
+                    for (let i = 0; i < n; i++) {
+                        await manager.ensureStorEdgeControlBlock();
+                    }
+
+                    for (const id of ['StorEdgeControlBlock', ...STOREDGE_IDS]) {
+                        expect(adapter.createCalls.get(id) ?? 0, `${id} createCalls`).to.equal(1);
+                        expect(adapter.createAttempts.get(id) ?? 0, `${id} createAttempts`).to.equal(0);
+                    }
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Property 14: The write=true surface is exactly the nine StorEdgeControlBlock states
+        // ----------------------------------------------------------------
+
+        it('Feature: storedge-battery-control, Property 14: The write=true surface is exactly the nine StorEdgeControlBlock states', async () => {
+            // Every def created via the EXISTING SunSpec ensureState path — either a
+            // top-level value def (inverter/meter) or a battery value def — always has
+            // common.write === false.
+            const sunspecDefArb = fc.oneof(
+                fc.record({ def: fc.constantFrom(...allValueDefs), isBattery: fc.constant(false) }),
+                fc.record({ def: fc.constantFrom(...allBatteryValueDefs), isBattery: fc.constant(true) }),
+            );
+
+            await fc.assert(
+                fc.asyncProperty(sunspecDefArb, async ({ def, isBattery }) => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+                    const channel = isBattery ? 'battery.1' : channelForDef(def);
+                    await manager.ensureState(channel, def);
+
+                    const common = adapter.objects.get(`${channel}.${def.name}`)!.common as ioBroker.StateCommon;
+                    expect(common.write).to.equal(false);
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        it('the exactly-nine StorEdgeControlBlock ids all have write=true, and no StorEdgeControlBlock id is ever produced by ensureState', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            // Drive every SunSpec value def (inverter/meter/battery) through the
+            // register-map-driven ensureState path: none of them must ever produce a
+            // StorEdgeControlBlock.* id.
+            for (const def of allValueDefs) {
+                await manager.ensureState(channelForDef(def), def);
+            }
+            for (const def of allBatteryValueDefs) {
+                await manager.ensureState('battery.1', def);
+            }
+            const storEdgeIdsFromReadModel = [...adapter.objects.keys()].filter(id =>
+                id.startsWith('StorEdgeControlBlock.'),
+            );
+            expect(
+                storEdgeIdsFromReadModel,
+                'SunSpec read path must not create StorEdgeControlBlock.* states',
+            ).to.deep.equal([]);
+
+            // The nine StorEdgeControlBlock ids come only from ensureStorEdgeControlBlock(),
+            // are created exactly nine, and all have write=true.
+            await manager.ensureStorEdgeControlBlock();
+            const createdStorEdgeIds = [...adapter.objects.keys()]
+                .filter(id => id.startsWith('StorEdgeControlBlock.'))
+                .sort();
+            expect(createdStorEdgeIds).to.deep.equal([...STOREDGE_IDS].sort());
+            for (const id of createdStorEdgeIds) {
+                const common = adapter.objects.get(id)!.common as ioBroker.StateCommon;
+                expect(common.write, `${id} write`).to.equal(true);
+            }
         });
     });
 });

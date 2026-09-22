@@ -9,7 +9,12 @@ import * as utils from '@iobroker/adapter-core';
 import { validateConfig } from './lib/config-validation';
 import { DEFAULT_TIMEOUT_MS, ModbusClient } from './lib/modbus-client';
 import { StateManager, type ChannelPath } from './lib/state-manager';
-import { decodeRegisters } from './lib/sunspec-decode';
+import {
+    STOREDGE_CONTROL_REGISTERS,
+    findStorEdgeControlDef,
+    type StorEdgeControlRegisterDef,
+} from './lib/storedge-control-map';
+import { decodeRegisters, encodeFloat32le, encodeUint32le } from './lib/sunspec-decode';
 import { COMMON_BASE } from './lib/sunspec-map';
 import { SunSpecReader, type Logger } from './lib/sunspec-reader';
 
@@ -19,15 +24,62 @@ import { SunSpecReader, type Logger } from './lib/sunspec-reader';
  */
 const MAX_CONSECUTIVE_FAILURES = 10;
 
+/** Base address of the first StorEdgeControlBlock read span (0xE004..0xE00C). */
+const STOREDGE_BLOCK_SPAN_A_BASE = 0xe004;
+/** Base address of the second StorEdgeControlBlock read span (0xE00D..0xE011). */
+const STOREDGE_BLOCK_SPAN_B_BASE = 0xe00d;
+
+/**
+ * Slice the raw words for one StorEdgeControlBlock register def out of whichever
+ * of the two read spans covers its address (Req 5.1, 5.2).
+ *
+ * @param def - The register definition being decoded.
+ * @param spanA - Words read from {@link STOREDGE_BLOCK_SPAN_A_BASE} (0xE004..0xE00C).
+ * @param spanB - Words read from {@link STOREDGE_BLOCK_SPAN_B_BASE} (0xE00D..0xE011).
+ */
+function wordsForStorEdgeDef(
+    def: StorEdgeControlRegisterDef,
+    spanA: readonly number[],
+    spanB: readonly number[],
+): number[] {
+    if (def.address >= STOREDGE_BLOCK_SPAN_B_BASE) {
+        const offset = def.address - STOREDGE_BLOCK_SPAN_B_BASE;
+        return spanB.slice(offset, offset + def.length);
+    }
+    const offset = def.address - STOREDGE_BLOCK_SPAN_A_BASE;
+    return spanA.slice(offset, offset + def.length);
+}
+
+/**
+ * Map a StorEdgeControlBlock register's `kind` to the `decodeRegisters`/encode
+ * datatype string it uses on the wire (Req 4.1-4.5).
+ *
+ * @param def - The register definition being decoded.
+ */
+function storEdgeWireDatatype(def: StorEdgeControlRegisterDef): 'uint16' | 'float32le' | 'uint32le' {
+    if (def.kind === 'uint16') {
+        return 'uint16';
+    }
+    if (def.kind === 'float32') {
+        return 'float32le';
+    }
+    return 'uint32le';
+}
+
 /**
  * SolarEdge SunSpec reader adapter.
  *
- * Read-only Modbus TCP monitor: on start it validates the configuration and ensures the
- * `info.connection` indicator and the `inverter` channel exist, then polls the inverter
- * plus every present meter (up to 3) and battery (up to 2) SunSpec block on the
- * configured interval. Meter/battery channels are created on demand once a slot is
- * detected. The adapter never issues Modbus write function codes and never subscribes to
- * state changes — it only writes acknowledged values it read from the device.
+ * Modbus TCP monitor: on start it validates the configuration and ensures the
+ * `info.connection` indicator, the `inverter` channel, and the always-present
+ * `StorEdgeControlBlock` channel (all nine Global StorEdge Control Block registers,
+ * `read=true, write=true`) exist, then polls the inverter, every present meter (up
+ * to 3) and battery (up to 2) SunSpec block, and the StorEdgeControlBlock registers
+ * on the configured interval. Meter/battery channels are created on demand once a
+ * slot is detected. The StorEdgeControlBlock is unconditional — there is no
+ * configuration setting that gates it: it is created and subscribed on every start,
+ * regardless of any admin config value. A non-acknowledged change to one of its nine
+ * states is range-validated and, if valid, dispatched as a Modbus write via FC06
+ * (uint16) or FC16 (float32le/uint32le) (see {@link handleStorEdgeControlChange}).
  */
 class Sehybrid extends utils.Adapter {
     /** Reused Modbus client; reconnected by {@link pollOnce} after a failed cycle. */
@@ -51,6 +103,9 @@ class Sehybrid extends utils.Adapter {
         this.on('ready', this.onReady.bind(this));
         this.on('message', this.onMessage.bind(this));
         this.on('unload', this.onUnload.bind(this));
+        // Bound so the StorEdgeControlBlock subscription (registered in onReady) has
+        // a handler.
+        this.on('stateChange', this.onStateChange.bind(this));
     }
 
     /**
@@ -58,8 +113,9 @@ class Sehybrid extends utils.Adapter {
      *
      * Sets the connection indicator to false, validates the config (guarding on a
      * missing host, Req 8.4), constructs the Modbus client / reader / state manager,
-     * ensures the channels, then runs the first poll and schedules the repeating timer
-     * (Req 5.4, 7.1, 8.3).
+     * ensures the `inverter` channel and the always-present `StorEdgeControlBlock`
+     * channel (unconditionally, on every start — no config setting gates it), then
+     * runs the first poll and schedules the repeating timer (Req 5.4, 7.1, 8.1, 8.3).
      */
     private async onReady(): Promise<void> {
         // Ensure the connection indicator object exists (it is declared in
@@ -112,15 +168,100 @@ class Sehybrid extends utils.Adapter {
         // since which slots exist is only known after probing the device (Req 9.3, 10.5).
         await this.stateManager.ensureChannel('inverter');
 
+        // Unconditional, every start: create the StorEdgeControlBlock channel and its
+        // nine states, then subscribe to state changes on it. No config setting gates
+        // this — it is always created and always writable (Req 8.1, 8.2, 8.3).
+        await this.stateManager.ensureStorEdgeControlBlock();
+        this.subscribeStates('StorEdgeControlBlock.*');
+
         this.log.info(
             `Starting SunSpec polling of ${this.config.host}:${this.config.port} (unit ${this.config.unitId}) every ${this.config.pollInterval}s`,
         );
 
-        // Run one cycle immediately, then schedule the repeating timer (Req 5.4).
+        // Run one cycle immediately (Req 5.4).
         await this.pollOnce();
+
+        // Schedule the repeating poll timer (Req 5.4).
         this.pollTimer = this.setInterval(() => {
             void this.pollOnce();
         }, this.config.pollInterval * 1000);
+    }
+
+    /**
+     * Handle a subscribed state change under `StorEdgeControlBlock.*`. Guards drop
+     * deletions and adapter-originated acks up front; the write dispatch is
+     * delegated to {@link handleStorEdgeControlChange} so Modbus failures stay
+     * contained (they are logged and non-fatal, never thrown out of the event
+     * handler) (Req 7.1, 7.2).
+     *
+     * @param id - The changed state id.
+     * @param state - New state, or null/undefined on deletion.
+     */
+    private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
+        // Deletion — ignore.
+        if (!state) {
+            return;
+        }
+        // Adapter-originated acknowledged write (poll-read or write-ack) — ignore to
+        // prevent write loops.
+        if (state.ack) {
+            return;
+        }
+        // Delegate the async dispatch; errors are handled inside the helper.
+        void this.handleStorEdgeControlChange(id, state);
+    }
+
+    /**
+     * Dispatch a non-acked, non-deletion change to a `StorEdgeControlBlock.<leaf>`
+     * state.
+     *
+     * Resolves the leaf to its register def via {@link findStorEdgeControlDef};
+     * ids outside the `StorEdgeControlBlock.` namespace or unknown leaves are
+     * ignored. The candidate value is coerced to a number and range-validated
+     * against `def.min`/`def.max`: an invalid value is logged and rejected — no
+     * write, no ack, the previous value is retained. A valid value is dispatched as
+     * a Modbus write via FC06 (uint16) or FC16 (float32le/uint32le), every time —
+     * there is no write-only-if-changed suppression (Req 6.1-6.4, 7.1-7.5). On
+     * success the value is acknowledged; on failure the error is logged and
+     * non-fatal, and the previous acked value is retained.
+     *
+     * @param id - The changed state id (instance-namespaced).
+     * @param state - The new, non-acked state.
+     */
+    private async handleStorEdgeControlChange(id: string, state: ioBroker.State): Promise<void> {
+        const prefix = `${this.namespace}.StorEdgeControlBlock.`;
+        if (!id.startsWith(prefix)) {
+            return;
+        }
+        const leaf = id.slice(prefix.length);
+        const def = findStorEdgeControlDef(leaf);
+        if (!def) {
+            return;
+        }
+
+        const value = Number(state.val);
+        if (!Number.isFinite(value) || value < def.min || value > def.max) {
+            this.log.error(
+                `Rejected write to ${leaf} (0x${def.address.toString(16).toUpperCase()}): ${state.val} is outside the documented range [${def.min}, ${def.max}]`,
+            );
+            return;
+        }
+
+        try {
+            if (def.kind === 'uint16') {
+                await this.modbusClient!.writeSingleRegister(def.address, value);
+            } else if (def.kind === 'float32') {
+                await this.modbusClient!.writeMultipleRegisters(def.address, encodeFloat32le(value));
+            } else {
+                await this.modbusClient!.writeMultipleRegisters(def.address, encodeUint32le(value));
+            }
+            await this.stateManager!.ackStorEdgeWrite(def, value);
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            this.log.error(
+                `Failed to write ${leaf} (0x${def.address.toString(16).toUpperCase()}) = ${value}: ${reason}. Retaining the previously acknowledged value.`,
+            );
+        }
     }
 
     /**
@@ -202,6 +343,30 @@ class Sehybrid extends utils.Adapter {
             }
             if (batteries.length === 0) {
                 this.log.debug('No batteries detected this cycle');
+            }
+
+            // --- StorEdgeControlBlock read (Req 5.1-5.4) ----------------------------
+            // Minimal round-trips: the nine registers span two contiguous windows —
+            // 0xE004..0xE00C (9 words: Storage_Control_Mode, Storage_AC_Charge_Policy,
+            // Storage_AC_Charge_Limit [2w], Storage_Backup_Reserved_Setting [2w],
+            // Storage_Charge_Discharge_Default_Mode, Remote_Control_Command_Timeout
+            // [2w]) and 0xE00D..0xE011 (5 words: Remote_Control_Command_Mode,
+            // Remote_Control_Charge_Limit [2w], Remote_Control_Discharge_Limit [2w]).
+            // There is no gap within either span, but a register-map discontinuity
+            // between the two windows is not assumed, so they are read as two
+            // requests rather than one — mirroring the existing segmented-read
+            // pattern used for the battery block elsewhere in this adapter. A read
+            // failure here propagates out of this try and is handled by the existing
+            // catch block below, exactly like an inverter/meter/battery read failure
+            // (no special-casing) (Req 5.4).
+            const blockWordsA = await client.readHoldingRegisters(0xe004, 9); // 0xE004..0xE00C
+            const blockWordsB = await client.readHoldingRegisters(0xe00d, 5); // 0xE00D..0xE011
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
+                const value = decodeRegisters(words, storEdgeWireDatatype(def));
+                if (value !== null) {
+                    await stateManager.writeStorEdgeValue(def, value as number);
+                }
             }
 
             // Cycle completed without throwing: connection is up (Req 7.2, 7.5).
@@ -329,6 +494,9 @@ class Sehybrid extends utils.Adapter {
      * @param callback - Callback that must be invoked to complete unloading.
      */
     private onUnload(callback: () => void): void {
+        // NOTE: no control write on unload — revert to the default storage control
+        // mode happens ONLY on the disable (OFF) transition via disableControl(),
+        // never here (Req 12.5). Unload just clears the timer and closes the socket.
         try {
             if (this.pollTimer) {
                 this.clearInterval(this.pollTimer);
