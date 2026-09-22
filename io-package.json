@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "news": {
+      "1.0.5": {
+        "en": "Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`",
+        "de": "Hat das kanonische Full-Typescript-Adapter-Layout übernommen: `build/` ist nicht mehr gebunden; das npm-Paket liefert es über `prepublishOnly` und `common.nogit`",
+        "ru": "Принята каноническая компоновка адаптера Full-TypeScript: `build/` больше не фиксируется; пакет npm поставляет его через `PrepublishOnly` и `common.nogit`",
+        "pt": "Adotou o layout canônico do adaptador Full-TypeScript: `build/` não é mais confirmado; o pacote npm o envia via `prepublishOnly` e `common.nogit`",
+        "nl": "Ik heb de canonieke indeling van de Full-TypeScript-adapter overgenomen: `build/` is niet langer vastgelegd; het npm-pakket verzendt deze via `PrePublishOnly` en `common.nogit`",
+        "fr": "A adopté le schéma canonique de l'adaptateur Full-TypeScript : « build/ » n'est plus validé ; le package npm l'expédie via « PrepublishOnly » et « common.nogit »",
+        "it": "Ha adottato il layout canonico dell'adattatore Full-TypeScript: `build/` non è più commit; il pacchetto npm lo invia via `PrepublishOnly` e `common.nogit`",
+        "es": "Adoptó el diseño canónico del adaptador de texto completo: `build/` ya no se confirma; el paquete npm lo envía mediante `PrePublishOnly` y `common.nogit`",
+        "pl": "Przyjęto kanoniczny układ adaptera Full-TypeScript: `build/` nie jest już zatwierdzany; pakiet npm dostarcza go za pośrednictwem `PrePublishOnly` i `common.nogit`",
+        "uk": "Прийнято канонічний макет адаптера повного TypeScript: `build/` більше не виконується; пакет npm надсилає його через `PrePublishOnly` та `common.nogit`",
+        "zh-cn": "采用了规范的完整 TypeScript 适配器布局：不再提交 `build/`；npm 包通过 `prepublishOnly` 和 `common.nogit` 发送"
+      },
       "1.0.4": {
         "en": "Committed the compiled `build/` output so the adapter can be installed directly from GitHub\nFixed the admin icon and static admin files being excluded from the repository\nUpgraded the admin UI build tooling to Vite 8\nVarious repository/CI cleanups to satisfy the ioBroker adapter checker",
         "de": "Compilierte `build/`-Ausgabe, damit der Adapter direkt von GitHub installiert werden kann\nAdmin-Icon und statische Admin-Dateien wurden aus dem Archiv entfernt\nAdmin-UI-Build-Tools auf Vite 8 aktualisiert\nDiverse Repository-/CI-Aufräumarbeiten für den ioBroker Adapter Checker",
@@ -80,19 +93,6 @@
         "pl": "Podziel dokumentację na podręczniki użytkownika (README.md) i programistów (README_dev.md)\nUdokumentowano alternatywny port Modbus TCP 1502\nZatrzymano wersję generowanych wyników kompilacji",
         "uk": "Розділіть документацію на посібники користувача (README.md) та розробника (README_dev.md)\nЗадокументований альтернативний порт Modbus TCP 1502\nЗупинено версійне створення вихідних даних збірки",
         "zh-cn": "将文档拆分为用户 (README.md) 和开发者 (README_dev.md) 指南\n已记录备用 Modbus TCP 端口 1502\n停止版本控制生成的编译输出"
-      },
-      "0.0.2": {
-        "en": "initial release",
-        "de": "erste Version",
-        "ru": "первоначальный релиз",
-        "pt": "versão inicial",
-        "nl": "eerste uitgave",
-        "fr": "sortie initiale",
-        "it": "prima versione",
-        "es": "versión inicial",
-        "pl": "wstępne wydanie",
-        "uk": "первинний випуск",
-        "zh-cn": "初始版本"
       }
     },
     "titleLang": {
