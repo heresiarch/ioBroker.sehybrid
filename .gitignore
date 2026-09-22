@@ -22,8 +22,13 @@ admin/i18n/*/flat.txt
 # admin UI Vite intermediate build
 src-admin/build/
 
-# admin/ is pure build output (generated from src-admin), not committed
-admin/
+# admin/ holds BOTH hand-maintained static files (icon .png, jsonCustom.json,
+# style.css, i18n) and generated Vite output. Only the generated output is
+# ignored; the hand-maintained files are committed (see tasks.js, which
+# preserves .png/.json/.css/i18n on clean).
+admin/assets/
+admin/index.html
+admin/tab.html
 
 # build/ is the TypeScript compile output (generated from src/). It IS committed
 # so the adapter can be installed directly from GitHub (ioBroker forbids install
