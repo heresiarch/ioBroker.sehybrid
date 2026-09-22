@@ -130,6 +130,10 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (René Meyer) Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems
+* (René Meyer) Admin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook
+
 ### 1.0.0 (2026-09-22)
 * (René Meyer) Replaced the consumption-based battery control (enable switch, computed discharge limit, heartbeat) with an always-on `StorEdgeControlBlock` channel exposing all nine Global StorEdge Control Block registers, read and write, with no admin configuration
 * (René Meyer) Documented the new `StorEdgeControlBlock` channel in the README
