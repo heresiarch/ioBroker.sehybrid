@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.2 (2026-09-22)
 * (René Meyer) Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)
 * (René Meyer) The CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script
 
