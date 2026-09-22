@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.1 (2026-09-22)
 * (René Meyer) Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems
 * (René Meyer) Admin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook
 
