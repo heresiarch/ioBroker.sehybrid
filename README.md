@@ -130,6 +130,8 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+
 ### 1.0.3 (2026-09-22)
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
 
