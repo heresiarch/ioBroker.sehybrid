@@ -20,8 +20,19 @@
 // 6.2; Property 7) and rely on `setObjectNotExistsAsync` so pre-existing objects
 // on disk are reused rather than recreated.
 //
-// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 8.1, 9.3, 10.5, 10.6, 10.7
+// Separately, and deliberately OUTSIDE the register-map-driven read model, the
+// manager also creates the always-present, plain (non-expert) `StorEdgeControlBlock`
+// channel and its nine states (ensureStorEdgeControlBlock/writeStorEdgeValue/
+// ackStorEdgeWrite) for the Global StorEdge Control Block feature. These states are
+// declared explicitly from `STOREDGE_CONTROL_REGISTERS` — never sourced from
+// SUNSPEC_MAP/BATTERY_MAP — and are the ONLY write=true states in the entire
+// adapter; every SunSpec read state remains write=false (Req 8.1, 8.2, 8.4, 9.1,
+// 9.2, 9.3).
+//
+// Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 8.1, 8.2, 8.4, 9.1, 9.2,
+// 9.3, 10.5, 10.6, 10.7
 
+import { STOREDGE_CONTROL_REGISTERS, type StorEdgeControlRegisterDef } from './storedge-control-map';
 import type { SunSpecRegisterDef, SunSpecRole } from './sunspec-map';
 
 /**
@@ -54,6 +65,16 @@ export interface IStateManager {
     ensureState(channel: ChannelPath, def: SunSpecRegisterDef): Promise<void>;
     /** Write an engineering value with ack=true; no-op when value is null (Req 3.8, 6.8, 8.1). */
     writeValue(channel: ChannelPath, def: SunSpecRegisterDef, value: number | string | null): Promise<void>;
+    /**
+     * Create the plain (non-expert), always-present `StorEdgeControlBlock` channel and
+     * its nine states, idempotently and outside the register-map-driven read model
+     * (Req 8.1, 8.2, 8.4, 9.1). Called unconditionally on every adapter start.
+     */
+    ensureStorEdgeControlBlock(): Promise<void>;
+    /** Write a live-read value to a StorEdgeControlBlock state with ack=true (poll-read path). */
+    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
+    /** Acknowledge a successful user-driven write with the written value (write-dispatch path). */
+    ackStorEdgeWrite(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
 }
 
 /** Human-readable display names for the parent device folders (Req 6.9, 9.3, 10.5). */
@@ -99,6 +120,26 @@ const ROLE_MAP: Record<SunSpecRole, string> = {
     percent: 'value.fill',
     status: 'indicator',
     info: 'value',
+};
+
+/** The plain, always-present channel under which all StorEdgeControlBlock states live (Req 8.1, 9.1). */
+const STOREDGE_CONTROL_CHANNEL = 'StorEdgeControlBlock';
+
+/**
+ * Map a StorEdgeControlBlock register's `name` to its ioBroker `common.role`
+ * (Req 9.1, design section 3). Every one of the nine registers has an entry so the
+ * mapping is total.
+ */
+const STOREDGE_CONTROL_ROLE_MAP: Record<string, string> = {
+    storageControlMode: 'level.mode',
+    storageAcChargePolicy: 'level.mode',
+    storageAcChargeLimit: 'value.energy',
+    storageBackupReservedSetting: 'value.fill',
+    storageChargeDischargeDefaultMode: 'level.mode',
+    remoteControlCommandTimeout: 'value.interval',
+    remoteControlCommandMode: 'level.mode',
+    remoteControlChargeLimit: 'value.power',
+    remoteControlDischargeLimit: 'value.power',
 };
 
 /**
@@ -192,5 +233,79 @@ export class StateManager implements IStateManager {
         await this.ensureState(channel, def);
         // Every value received from the inverter is written acknowledged (Req 6.8, 8.1).
         await this.adapter.setStateAsync(`${channel}.${def.name}`, { val: value, ack: true });
+    }
+
+    async ensureStorEdgeControlBlock(): Promise<void> {
+        // Create the plain (non-expert) channel first so the nine states nest under
+        // it. Unlike the old design's expert `control` channel, this is now the
+        // primary, always-present way to reach these registers, so it is NOT flagged
+        // `common.expert = true` — mirroring the existing plain inverter/meter/battery
+        // channel pattern (Req 8.1, 8.2). This is deliberately separate from the
+        // SunSpec channels created by ensureChannel, and never sourced from the
+        // register map (Req 8.4).
+        if (!this.createdChannels.has(STOREDGE_CONTROL_CHANNEL)) {
+            await this.adapter.setObjectNotExistsAsync(STOREDGE_CONTROL_CHANNEL, {
+                type: 'channel',
+                common: {
+                    name: 'StorEdge Control Block',
+                },
+                native: {},
+            });
+            this.createdChannels.add(STOREDGE_CONTROL_CHANNEL);
+        }
+
+        // Create each of the nine states explicitly from STOREDGE_CONTROL_REGISTERS
+        // (not the SunSpec register map), reusing the same Set-based idempotency +
+        // setObjectNotExistsAsync pattern as the SunSpec states so repeat calls are
+        // genuine no-ops (Property 13). Every one of the nine is read=true, write=true
+        // with no exceptions (Req 9.1) — these are the ONLY write=true states in the
+        // adapter (Req 9.2, 9.3).
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const id = `${STOREDGE_CONTROL_CHANNEL}.${def.name}`;
+            if (this.ensuredStates.has(id)) {
+                continue;
+            }
+
+            const common: ioBroker.StateCommon = {
+                name: def.name,
+                type: 'number',
+                role: STOREDGE_CONTROL_ROLE_MAP[def.name],
+                read: true,
+                write: true,
+                min: def.min,
+                max: def.max,
+            };
+            if (def.unit !== undefined) {
+                common.unit = def.unit;
+            }
+
+            await this.adapter.setObjectNotExistsAsync(id, {
+                type: 'state',
+                common,
+                native: {},
+            });
+            this.ensuredStates.add(id);
+        }
+    }
+
+    async writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+        await this.ackStorEdgeValue(def, value);
+    }
+
+    async ackStorEdgeWrite(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+        await this.ackStorEdgeValue(def, value);
+    }
+
+    /**
+     * Shared helper for the poll-read and write-dispatch acknowledgement paths: both
+     * write `{ val: value, ack: true }` to `StorEdgeControlBlock.<def.name>` (design
+     * section 3). Kept as two distinct public names (`writeStorEdgeValue` /
+     * `ackStorEdgeWrite`) so each call site reads clearly.
+     *
+     * @param def - The StorEdgeControlBlock register definition being written.
+     * @param value - The value to write, acknowledged.
+     */
+    private async ackStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+        await this.adapter.setStateAsync(`${STOREDGE_CONTROL_CHANNEL}.${def.name}`, { val: value, ack: true });
     }
 }

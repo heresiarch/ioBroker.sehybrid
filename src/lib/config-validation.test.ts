@@ -9,7 +9,7 @@
 import { expect } from 'chai';
 import fc from 'fast-check';
 import type { ConfigValidationResult } from './config-validation';
-import { validateConfig, CONFIG_BOUNDS } from './config-validation';
+import { CONFIG_BOUNDS, validateConfig } from './config-validation';
 
 // The four fields validateConfig cares about. We build partial configs from these.
 type TestConfig = {
