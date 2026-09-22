@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "news": {
+      "1.0.4": {
+        "en": "Committed the compiled `build/` output so the adapter can be installed directly from GitHub\nFixed the admin icon and static admin files being excluded from the repository\nUpgraded the admin UI build tooling to Vite 8\nVarious repository/CI cleanups to satisfy the ioBroker adapter checker",
+        "de": "Compilierte `build/`-Ausgabe, damit der Adapter direkt von GitHub installiert werden kann\nAdmin-Icon und statische Admin-Dateien wurden aus dem Archiv entfernt\nAdmin-UI-Build-Tools auf Vite 8 aktualisiert\nDiverse Repository-/CI-Aufräumarbeiten für den ioBroker Adapter Checker",
+        "ru": "Зафиксирован скомпилированный вывод `build/ `, чтобы адаптер можно было установить непосредственно из GitHub\nИсправлено исключение значка администратора и статических файлов администратора из репозитория\nОбновлены инструменты сборки пользовательского интерфейса администратора до Vite 8\nРазличные очистки репозиториев и CI в соответствии с программой проверки адаптеров IOBroker",
+        "pt": "Compilou a saída `build/` para instalar o adaptador diretamente do GitHub\nCorrigido o ícone e os arquivos estáticos do administrador do repositório\nAtualizou a ferramenta admin UI para o Vite 8\nVárias limpezas de repositório/CI para o IOBroker Adapter Checker",
+        "nl": "De gecompileerde `build/` uitvoer vastgelegd zodat de adapter rechtstreeks vanaf GitHub kan worden geïnstalleerd\nHet admin-pictogram en de statische beheerbestanden zijn uitgesloten van de repository opgelost\nDe tools voor het bouwen van de gebruikersinterface voor beheerders geüpgraded naar Vite 8\nVerschillende opruimingen van repository/CI om te voldoen aan de IOBroker-adaptercontrole",
+        "fr": "J'ai validé la sortie compilée pour installer l'adaptateur directement depuis GitHub\nCorrection de l'icône admin et de l'exclusion des fichiers admin statiques du dépôt\nA mis à jour l'outil Admin UI Build vers Vite 8\nDivers nettoyages du dépôt et du CI pour répondre à l'IOBroker Adapter Checker",
+        "it": "Ha inviato l'output `build/` in modo che l'adattatore sia installato da GitHub\nRisolto l'esclusione dell'icona admin e dei file admin statici dal repository\nAggiornato l'interfaccia utente admin a Vite 8\nVarie pulizie di repository/CI per soddisfare IOBroker Adapter Checker",
+        "es": "Condujo la salida compilada de «compilar» para que el adaptador se instale directamente desde GitHub\nSe ha corregido que el icono de admin y los archivos estáticos se excluyeran del repositorio\nActualizó la interfaz de usuario admin a Vite 8\nVarias limpiezas de repositorios y CI para el comprobador de adaptadores ioBroker",
+        "pl": "Zlecono skompilowane wyjście `build/`, aby adapter mógł być zainstalowany bezpośrednio z GitHub\nNaprawiono wykluczenie z repozytorium ikony administratora i statycznych plików administracyjnych\nUaktualniono narzędzia do kompilacji interfejsu administratora do Vite 8\nRóżne czyszczenie repozytoriów/CI w celu zaspokojenia modułu sprawdzania adaptera iOBroker",
+        "uk": "Здійснено компільований вихід `build/`, щоб адаптер можна було встановити безпосередньо з GitHub\nВиправлено значок адміністратора та статичні файли адміністратора, які виключаються зі сховища\nОновлено інструмент збирання інтерфейсу адміністратора до Vite 8\nРізні очищення сховища/CI, щоб задовольнити перевірку адаптера IObroker",
+        "zh-cn": "提交了编译后的 build/` 输出，以便可以直接从 GitHub 安装适配器\n修复了管理员图标和静态管理文件被排除在存储库中的问题\n将管理界面构建工具升级到 Vite 8\n各种存储库/CI 清理以满足 IOBroker 适配器检查器的需求"
+      },
       "1.0.3": {
         "en": "Adapter requires admin >= 7.8.23 now.",
         "de": "Adapter benötigt jetzt admin >= 7.8.23.",
@@ -80,19 +93,6 @@
         "pl": "wstępne wydanie",
         "uk": "первинний випуск",
         "zh-cn": "初始版本"
-      },
-      "0.0.1": {
-        "en": "initial release",
-        "de": "Erstveröffentlichung",
-        "ru": "Начальная версия",
-        "pt": "lançamento inicial",
-        "nl": "Eerste uitgave",
-        "fr": "Première version",
-        "it": "Versione iniziale",
-        "es": "Versión inicial",
-        "pl": "Pierwsze wydanie",
-        "uk": "Початкова версія",
-        "zh-cn": "首次出版"
       }
     },
     "titleLang": {

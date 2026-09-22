@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.4 (2026-09-22)
 * (René Meyer) Committed the compiled `build/` output so the adapter can be installed directly from GitHub
 * (René Meyer) Fixed the admin icon and static admin files being excluded from the repository
 * (René Meyer) Upgraded the admin UI build tooling to Vite 8
@@ -150,11 +150,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### 1.0.0 (2026-09-22)
 * (René Meyer) Replaced the consumption-based battery control (enable switch, computed discharge limit, heartbeat) with an always-on `StorEdgeControlBlock` channel exposing all nine Global StorEdge Control Block registers, read and write, with no admin configuration
 * (René Meyer) Documented the new `StorEdgeControlBlock` channel in the README
-
-### 0.0.3 (2026-09-12)
-* (René Meyer) Split documentation into user (README.md) and developer (README_dev.md) guides
-* (René Meyer) Documented the alternate Modbus TCP port 1502
-* (René Meyer) Stopped versioning generated build output
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
