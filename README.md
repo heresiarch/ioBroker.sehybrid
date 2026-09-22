@@ -151,3 +151,8 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 * (René Meyer) Stopped versioning generated build output
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
+
+## License
+
+Copyright (c) 2026 René Meyer <heresiarch@online.de>
+see [LICENSE](LICENSE)

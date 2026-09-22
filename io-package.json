@@ -122,9 +122,10 @@
       "zh-cn": "ioBroker 适配器，用于监控和控制 SolarEdge 混合逆变器。提供对光伏、电池和运行数据的访问，具有输出功率限制和存储控制模式等功能。"
     },
     "authors": [
-      "René Meyer"
+      "René Meyer <heresiarch@online.de>"
     ],
     "keywords": [
+      "ioBroker",
       "SolarEdge Hybrid Adapter iobroker"
     ],
     "licenseInformation": {
