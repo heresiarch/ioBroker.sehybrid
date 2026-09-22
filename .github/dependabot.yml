@@ -6,7 +6,9 @@ version: !!int '2'
 updates:
 
   - package-ecosystem: 'npm'
-    directory: '/'
+    directories:
+      - '/'
+      - '/src-admin'
     schedule:
       interval: 'monthly'
       time: '00:05'
