@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "news": {
+      "1.0.3": {
+        "en": "Adapter requires admin >= 7.8.23 now.",
+        "de": "Adapter benötigt jetzt admin >= 7.8.23.",
+        "ru": "Теперь для адаптера требуется администратор >= 7.8.23.",
+        "pt": "Agora o adaptador exige admin >= 7.8.23.",
+        "nl": "Voor de adapter is nu admin >= 7.8.23 vereist.",
+        "fr": "Adapter nécessite admin >= 7.8.23.",
+        "it": "Adapter richiede admin >= 7.8.23 ora.",
+        "es": "El adaptador ahora necesita admin >= 7.8.23",
+        "pl": "Adapter wymaga teraz administratora >= 7.8.23.",
+        "uk": "Адаптер вимагає адміністратора >= 7.8.23 зараз.",
+        "zh-cn": "适配器现在需要管理员 >= 7.8.23。"
+      },
       "1.0.2": {
         "en": "Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)\nThe CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script",
         "de": "Das npm-Skript `install:src-admin` aus package.json entfernt; es enthält jetzt keine Installationsskripte (behebt Problem #6)\nDer CI-Lint-Job installiert Admin-UI-Abhängigkeiten im Workflow statt per package.json-Skript",

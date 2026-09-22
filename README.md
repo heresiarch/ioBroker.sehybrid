@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.3 (2026-09-22)
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
 
 ### 1.0.2 (2026-09-22)
@@ -149,8 +149,5 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 * (René Meyer) Split documentation into user (README.md) and developer (README_dev.md) guides
 * (René Meyer) Documented the alternate Modbus TCP port 1502
 * (René Meyer) Stopped versioning generated build output
-
-### 0.0.2 (2026-09-11)
-* (René Meyer) initial release
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
