@@ -1,7 +1,0 @@
-package.json
-package-lock.json
-build/
-admin/assets/
-admin/index.html
-admin/tab.html
-src-admin/build/
