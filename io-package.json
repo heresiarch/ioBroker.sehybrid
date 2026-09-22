@@ -139,6 +139,7 @@
     "platform": "Javascript/Node.js",
     "icon": "sehybrid.png",
     "enabled": true,
+    "nogit": true,
     "extIcon": "https://raw.githubusercontent.com/heresiarch/ioBroker.sehybrid/main/admin/sehybrid.png",
     "readme": "https://github.com/heresiarch/ioBroker.sehybrid/blob/main/README.md",
     "loglevel": "info",
