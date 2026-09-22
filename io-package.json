@@ -125,8 +125,12 @@
       "René Meyer <heresiarch@online.de>"
     ],
     "keywords": [
-      "ioBroker",
-      "SolarEdge Hybrid Adapter iobroker"
+      "SolarEdge",
+      "modbus",
+      "inverter",
+      "battery",
+      "storedge",
+      "photovoltaics"
     ],
     "licenseInformation": {
       "type": "free",
