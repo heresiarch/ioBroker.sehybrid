@@ -31,6 +31,31 @@ import {
     getDeviceRegisterAddress,
 } from '../../../src/lib/sunspec-map';
 import type { SunSpecRegisterDef } from '../../../src/lib/sunspec-map';
+import { STOREDGE_CONTROL_REGISTERS } from '../../../src/lib/storedge-control-map';
+import type { StorEdgeControlRegisterDef } from '../../../src/lib/storedge-control-map';
+
+/**
+ * Format a Modbus register address as an uppercase, 4-digit, `0x`-prefixed hex string.
+ * e.g. `0xe004 → "0xE004"`, `0xe010 → "0xE010"`.
+ *
+ * @param address Register address as a number.
+ */
+function formatAddress(address: number): string {
+    return `0x${address.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+/**
+ * Format a min/max range as `"min..max"`, rendering an unbounded max
+ * (`Number.MAX_VALUE`) as the language-neutral infinity token `∞`.
+ * e.g. `(0, 4) → "0..4"`, `(0, Number.MAX_VALUE) → "0..∞"`, `(0, 86400) → "0..86400"`.
+ *
+ * @param min Range lower bound.
+ * @param max Range upper bound; `Number.MAX_VALUE` is treated as unbounded.
+ */
+function formatRange(min: number, max: number): string {
+    const maxLabel = max === Number.MAX_VALUE ? '∞' : String(max);
+    return `${min}..${maxLabel}`;
+}
 
 const styles: Record<string, React.CSSProperties> = {
     input: {
@@ -345,6 +370,68 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
         );
     }
 
+    /**
+     * Render the read-only StorEdge Control Block table, sourced from the static
+     * `STOREDGE_CONTROL_REGISTERS` data. Display-only: no editable inputs and no
+     * Modbus read/write/`sendTo` — this section consumes the control map read-only.
+     */
+    private renderStorEdgeTable(): React.JSX.Element {
+        return (
+            <Paper style={styles.tableWrapper}>
+                <Typography
+                    variant="h6"
+                    style={{ padding: 8 }}
+                >
+                    {I18n.t('StorEdge Control Block')}
+                </Typography>
+
+                <Accordion>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Typography>
+                            {`${I18n.t('StorEdge Control Block')} (${STOREDGE_CONTROL_REGISTERS.length})`}
+                        </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails style={styles.accordionDetails}>
+                        <div style={styles.scrollBox}>
+                            <Table size="small">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>{I18n.t('Name')}</TableCell>
+                                        <TableCell>{I18n.t('Address')}</TableCell>
+                                        <TableCell>{I18n.t('Encoding')}</TableCell>
+                                        <TableCell>{I18n.t('Unit')}</TableCell>
+                                        <TableCell>{I18n.t('Range')}</TableCell>
+                                        <TableCell>{I18n.t('Function code')}</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {STOREDGE_CONTROL_REGISTERS.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6}>
+                                                {I18n.t('No StorEdge control registers available')}
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        STOREDGE_CONTROL_REGISTERS.map((def: StorEdgeControlRegisterDef) => (
+                                            <TableRow key={def.name}>
+                                                <TableCell>{def.name}</TableCell>
+                                                <TableCell>{formatAddress(def.address)}</TableCell>
+                                                <TableCell>{def.kind}</TableCell>
+                                                <TableCell>{def.unit ?? ''}</TableCell>
+                                                <TableCell>{formatRange(def.min, def.max)}</TableCell>
+                                                <TableCell>{def.fc}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </AccordionDetails>
+                </Accordion>
+            </Paper>
+        );
+    }
+
     render(): React.JSX.Element {
         const errors = this.errors();
         const anyInvalid = Object.keys(errors).length > 0;
@@ -379,6 +466,7 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                 </div>
 
                 {this.renderValueTable()}
+                {this.renderStorEdgeTable()}
             </form>
         );
     }
