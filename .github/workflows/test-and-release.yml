@@ -38,6 +38,42 @@ jobs:
                   # them explicitly right before linting instead of via a lifecycle hook.
                   lint-command: '(npm ci --prefix src-admin || npm install --prefix src-admin) && npm run lint'
 
+    # Ensures the committed build/ tree matches what src/ currently compiles to.
+    # build/ is committed to git (required for GitHub installs, since ioBroker
+    # forbids install lifecycle scripts), so it can go stale if src/ is changed
+    # without rebuilding. This job rebuilds the TypeScript output and fails if the
+    # committed build/ differs, prompting the author to run `npm run build` and
+    # commit the result.
+    check-build-fresh:
+        if: contains(github.event.head_commit.message, '[skip ci]') == false
+
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24.x'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Rebuild TypeScript output
+              run: npm run build:ts
+
+            - name: Verify committed build/ is up to date
+              run: |
+                  if ! git diff --quiet -- build/; then
+                    echo "::error::The committed build/ tree is out of date with src/."
+                    echo "Run 'npm run build' locally and commit the updated build/ directory."
+                    echo "--- git diff (build/) ---"
+                    git --no-pager diff -- build/
+                    exit 1
+                  fi
+                  echo "build/ is up to date with src/."
+
     # Runs adapter tests on all supported node versions and OSes
     adapter-tests:
         needs: [check-and-lint]
