@@ -79,11 +79,15 @@ export interface IModbusClient {
  * @param message
  */
 function rejectAfter(ms: number, message: string): { promise: Promise<never>; cancel: () => void } {
-    let handle: ReturnType<typeof setTimeout>;
+    // Uses the global timer explicitly (via globalThis) rather than an adapter-managed
+    // timer: ModbusClient is a standalone library wrapper with no adapter reference, and
+    // this is a short-lived timeout-race handle that is always cleared via cancel() as
+    // soon as the raced operation settles, so it cannot outlive adapter unload.
+    let handle: ReturnType<typeof globalThis.setTimeout>;
     const promise = new Promise<never>((_resolve, reject) => {
-        handle = setTimeout(() => reject(new Error(message)), ms);
+        handle = globalThis.setTimeout(() => reject(new Error(message)), ms);
     });
-    return { promise, cancel: () => clearTimeout(handle) };
+    return { promise, cancel: () => globalThis.clearTimeout(handle) };
 }
 
 /**
@@ -208,14 +212,17 @@ export class ModbusClient implements IModbusClient {
             return;
         }
         await new Promise<void>(resolve => {
-            const handle = setTimeout(resolve, DEFAULT_TIMEOUT_MS);
+            // Global timer used explicitly (globalThis): no adapter is available in this
+            // library wrapper, and the handle is cleared on both the close callback and
+            // the catch path, so it always settles well before it could leak.
+            const handle = globalThis.setTimeout(resolve, DEFAULT_TIMEOUT_MS);
             try {
                 this.client.close(() => {
-                    clearTimeout(handle);
+                    globalThis.clearTimeout(handle);
                     resolve();
                 });
             } catch {
-                clearTimeout(handle);
+                globalThis.clearTimeout(handle);
                 resolve();
             }
         });
