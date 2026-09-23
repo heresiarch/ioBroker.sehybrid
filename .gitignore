@@ -30,12 +30,11 @@ admin/assets/
 admin/index.html
 admin/tab.html
 
-# build/ is the TypeScript compile output (generated from src/), NOT committed.
-# The npm tarball ships it via package.json "files" + the "prepublishOnly" build
-# hook, and io-package.json common.nogit=true tells the ioBroker checker the
-# compiled output lives in npm rather than git (canonical full-TS adapter layout,
-# see ioBroker.matter).
-build/
+# build/ (TypeScript compile output from src/) IS committed so the adapter can be
+# installed directly from GitHub. ioBroker forbids install lifecycle scripts, so
+# there is no build-on-install; committing build/main.js (package.json "main") is
+# the checker's sanctioned way to make GitHub installs work (E5019). Rebuilt on
+# release via release-script's before_commit hook. (See ioBroker.meteonomiqs.)
 
 # bundle analyzer output (ANALYZE=1 npm run build in src-admin)
 src-admin/stats.html

@@ -67,7 +67,6 @@
     "watch:react": "npm run watch --prefix src-admin",
     "prebuild": "rimraf build admin/assets admin/index.html admin/tab.html src-admin/build",
     "build": "npm run build:ts && npm run build:react",
-    "prepublishOnly": "npm run build",
     "watch": "build-adapter ts --watch",
     "test:ts": "mocha --config test/mocharc.custom.json src/**/*.test.ts",
     "test:package": "mocha test/package test/postinstall.test.js test/postinstall-preservation.test.js --exit",
