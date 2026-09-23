@@ -10,10 +10,10 @@ updates:
       - '/'
       - '/src-admin'
     schedule:
-      interval: 'monthly'
-      time: '00:05'
+      interval: 'cron'
+      cronjob: '17 4 9 * *'
       timezone: 'Europe/Berlin'
-    open-pull-requests-limit: !!int '5'
+    open-pull-requests-limit: !!int '15'
     assignees:
       - 'heresiarch'
     versioning-strategy: 'increase'
@@ -32,9 +32,9 @@ updates:
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
-      interval: 'monthly'
-      time: '00:05'
+      interval: 'cron'
+      cronjob: '42 6 23 * *'
       timezone: 'Europe/Berlin'
-    open-pull-requests-limit: !!int '5'
+    open-pull-requests-limit: !!int '15'
     assignees:
       - 'heresiarch'
