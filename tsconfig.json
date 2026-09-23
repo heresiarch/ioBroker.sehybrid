@@ -14,6 +14,10 @@
 
         "noEmitOnError": true,
         "outDir": "./build/",
+        // TypeScript 6 requires an explicit rootDir when outDir is set and files
+        // from multiple source directories (src and test) are compiled together,
+        // e.g. by ts-node during the mocha test run. "." covers both include globs.
+        "rootDir": ".",
         "removeComments": false,
 
         // This is necessary for the automatic typing of the adapter config

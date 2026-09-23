@@ -5,7 +5,11 @@
         "allowJs": false,
         "checkJs": false,
         "noEmit": false,
-        "declaration": false
+        "declaration": false,
+        // Emit build/main.js (not build/src/main.js) so "main": "build/main.js" resolves.
+        // The root tsconfig sets rootDir "." for the ts-node test run; the actual
+        // compilation only includes src, so rootDir is "./src" here.
+        "rootDir": "./src"
     },
     "include": ["src/**/*.ts"],
     "exclude": ["src/**/*.test.ts"]
