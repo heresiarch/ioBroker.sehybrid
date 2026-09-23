@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.7 (2026-09-23)
 * (René Meyer) Pending changes for the next release
 
 ### 1.0.6 (2026-09-23)
@@ -147,10 +147,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ### 1.0.3 (2026-09-22)
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
-
-### 1.0.2 (2026-09-22)
-* (René Meyer) Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)
-* (René Meyer) The CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 

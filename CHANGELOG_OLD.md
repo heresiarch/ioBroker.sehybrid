@@ -1,4 +1,8 @@
 # Older changes
+## 1.0.2 (2026-09-22)
+* (René Meyer) Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)
+* (René Meyer) The CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script
+
 ## 1.0.1 (2026-09-22)
 * (René Meyer) Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems
 * (René Meyer) Admin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "news": {
+      "1.0.7": {
+        "en": "Pending changes for the next release",
+        "de": "Änderungen im nächsten Release",
+        "ru": "Ожидаются изменения для следующей версии",
+        "pt": "Mudanças pendentes na próxima versão",
+        "nl": "In afwachting van wijzigingen voor de volgende release",
+        "fr": "À modifier pour la prochaine version",
+        "it": "In attesa di modifiche alla prossima release",
+        "es": "Cambios pendientes para la próxima versión",
+        "pl": "Oczekujące zmiany w następnej wersji",
+        "uk": "Очікуються зміни для наступного випуску",
+        "zh-cn": "等待下一个版本的更改"
+      },
       "1.0.6": {
         "en": "The compiled `build/` folder is now committed to the repository so the adapter can be installed directly from GitHub; dropped the `common.nogit` flag and the `prepublishOnly` build hook\nMade the adapter logo square (512x512) and reduced its size in the README",
         "de": "Der kompilierte Ordner `build/` ist nun im Projektarchiv gespeichert, sodass der Adapter direkt von GitHub installiert werden kann; Flag `common.nogit` und `prepublishOnly`\nQuadratisches Adapter-Logo (512x512) und verkleinert in der README",
@@ -80,19 +93,6 @@
         "pl": "Usunięto hak „postinstall”, który uruchamiał operacje npm podczas instalacji; adapter nie instaluje już żadnych zależności programistycznych na systemach użytkownika końcowego\nZależności interfejsu administratora są teraz uruchamiane tylko podczas kompilacji (Dev/CI), a nie za pomocą haczyka cyklu życia pakietu",
         "uk": "Вилучено хук `postinstall`, який виконував операції npm під час встановлення; адаптер більше не встановлює жодних залежностей розробки на системах кінцевого користувача\nЗалежності від інтерфейсу адміністратора тепер завантажуються лише під час збирання (Dev/CI), а не через хук життєвого циклу пакета",
         "zh-cn": "移除了在安装时运行 npm 操作的 postinstall 挂钩；适配器不再在最终用户系统上安装任何开发依赖项\n管理界面依赖项现在只能在构建期间启动 (dev/CI)，而不是通过包生命周期挂钩引导"
-      },
-      "1.0.0": {
-        "en": "Replaced the consumption-based battery control (enable switch, computed discharge limit, heartbeat) with an always-on `StorEdgeControlBlock` channel exposing all nine Global StorEdge Control Block registers, read and write, with no admin configuration\nDocumented the new `StorEdgeControlBlock` channel in the README",
-        "de": "Ersetzte die verbrauchsabhängige Batteriesteuerung (Freigabeschalter, berechnete Entladungsgrenze, Takt) durch einen ständig aktiven `StoEdgeControlBlock`-Kanal, der alle neun GLB-Register anzeigt, lesen und schreiben, ohne Admin-Konfiguration\nDokumentiert den neuen Kanal StoredgeControlBlock in README",
-        "ru": "Заменено управление батареей на основе потребления (включение переключателя, вычисление предела разряда, сердцебиение) на постоянно включенный канал StoredgeControlBlock, в котором доступны все девять регистров Global StoreEdge Control Block (чтение и запись) без необходимости настройки администратора\nЗадокументировал новый канал «StoredgeControlBlock» в README",
-        "pt": "Substituiu o controle baseado no consumo de bateria (chave de ativação, limite de descarga computadorizado, pulsação) por um canal `StoredgeControlBlock` sempre ativo que expõe todos os nove registros de leitura e gravação, sem configuração administrativa\nDocumentou o novo canal `StoredgeControlBlock` no README",
-        "nl": "De batterijregeling op basis van het verbruik (activeringsschakelaar, berekende ontladingslimiet, hartslag) vervangen door een altijd ingeschakeld `StoredLBlock'-kanaal dat alle negen Global StorEdge Control Block-registers zichtbaar maakt, lezen en schrijven, zonder beheerdersconfiguratie\nDocumenteerde het nieuwe `StoredlBlock` -kanaal in de README",
-        "fr": "Remplacement du contrôle de la batterie basé sur la consommation (interrupteur d'activation, limite de décharge calculée, pouls) par un canal « StoredgeControlBlock » ouvert en permanence, exposant les neuf registres du Global StorEdge Control Block, en lecture et en écriture, sans configuration administrative\nA documenté le nouveau canal « StoredgeControlBlock » dans le README",
-        "it": "Ha sostituito il controllo della batteria basato sul consumo (interruttore di abilitazione, limite di scarica, battito cardiaco) con un canale «StorEdgeControlBlock» sempre attivo che mostra tutti e nove i registri Global StorEdge\nDocumenta il nuovo canale `StorEdgeControlBlock` nel README",
-        "es": "Sustituyó el control de la batería basado en el consumo (cambio de activación, límite de descarga calculado, latidos) por un canal «StoEdgeControlBlock» siempre activo que expone los nueve registros de Global StorEdge Control Block, lectura y escritura, sin configuración de administración\nDocumentó el nuevo canal «StoredgeControlBlock» en el README",
-        "pl": "Zastąpiono sterowanie akumulatorem oparte na zużyciu energii (włączanie przełącznika, obliczony limit rozładowania, bicie serca) na zawsze włączony kanał „StoredgeControlblock”, który odsłania wszystkie dziewięć rejestrów Global StorEdge Control Block, odczyt i zapis, bez konfiguracji administratora\nUdokumentowano nowy kanał `StoredgeControlBlock` w README",
-        "uk": "Замінено контроль акумулятора на основі споживання (включення перемикача, обчислене обмеження розряду, серцебиття) на постійно увімкнений канал `StoredgeControlBlock`, що відкриває всі дев'ять реєстрів Global StoreEdge Control Block, читання та запис, без конфігурації адміністратора\nЗадокументовано новий канал `StoredgeControlBlock` у README",
-        "zh-cn": "将基于消耗的电池控制（启用开关、计算的放电限值、心跳信号）替换为始终开启的 “StoredgeControlBlock” 通道，该通道暴露了所有九个全球 StoreEdge 控制块寄存器（读取和写入），无需管理员配置\n在自述文件中记录了新的 `storedgeControlBlock` 频道"
       }
     },
     "titleLang": {
