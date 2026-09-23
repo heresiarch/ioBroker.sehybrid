@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "news": {
+      "1.0.6": {
+        "en": "The compiled `build/` folder is now committed to the repository so the adapter can be installed directly from GitHub; dropped the `common.nogit` flag and the `prepublishOnly` build hook\nMade the adapter logo square (512x512) and reduced its size in the README",
+        "de": "Der kompilierte Ordner `build/` ist nun im Projektarchiv gespeichert, sodass der Adapter direkt von GitHub installiert werden kann; Flag `common.nogit` und `prepublishOnly`\nQuadratisches Adapter-Logo (512x512) und verkleinert in der README",
+        "ru": "Скомпилированная папка `build/` теперь сохранена в репозитории, поэтому адаптер можно установить непосредственно из GitHub; сброшены флаг `common.nogit` и хук сборки `PrePublishOnly`\nСделал логотип адаптера квадратным (512x512) и уменьшил его размер в README",
+        "pt": "A pasta compilada `build/` agora está no repositório para instalar o adaptador diretamente do GitHub; removeu a bandeira `common.nogit` e o build hook `prepublishOnly`\nQuadrou o logotipo do adaptador (512x512) e reduziu o tamanho no README",
+        "nl": "De gecompileerde map `build/` is nu toegewezen aan de repository, zodat de adapter rechtstreeks vanaf GitHub kan worden geïnstalleerd; de vlag `common.nogit` en de `PrePublishOnly` buildhaak zijn verwijderd\nHet adapterlogo vierkant gemaakt (512 x 512) en het formaat ervan verkleind in de README",
+        "fr": "Le dossier build/compilé est maintenant enregistré dans le dépôt afin que l'adaptateur puisse être installé directement depuis GitHub. L'indicateur common.nogit et le hook de build PrepublishOnly ont été supprimés\nLogo de l'adaptateur carré (512 x 512) et réduit sa taille dans le README",
+        "it": "La cartella `build/` compilata è ora salvata nel repository, quindi l'adattatore può essere installato direttamente da GitHub; ha eliminato il flag common.nogit e il build hook PrepublishOnly\nHa quadrato il logo dell'adattatore (512x512) nel README",
+        "es": "La carpeta `build/` compilada ahora está guardada en el repositorio para que el adaptador se pueda instalar directamente desde GitHub; ha quitado el indicador `common.nogit` y el gancho de compilación `PrePublishOnly`\nCuadró el logotipo del adaptador (512 x 512) y redujo su tamaño en el README",
+        "pl": "Skompilowany folder `build/` jest teraz przekazany do repozytorium, więc adapter można zainstalować bezpośrednio z GitHub; upuszczono flagę `common.nogit` i haczyk kompilacji `PrePublishOnly`\nWykonało kwadratowe logo adaptera (512x512) i zmniejszyło jego rozmiar w README",
+        "uk": "Скомпільована тека `build/` тепер підключена до сховища, тому адаптер можна встановити безпосередньо з GitHub; скинуто прапор `common.nogit` та хук збірки `PrePublishOnly`\nЗробив логотип адаптера квадратним (512х512) і зменшив його розмір в README",
+        "zh-cn": "编译后的 build/` 文件夹现在已提交到存储库，因此可以直接从 GitHub 安装适配器；删除了 common.nogit 标志和 prepublishOnly 编译挂钩\n将适配器徽标设置为方形 (512x512)，并在自述文件中缩小了其大小"
+      },
       "1.0.5": {
         "en": "Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`",
         "de": "Hat das kanonische Full-Typescript-Adapter-Layout übernommen: `build/` ist nicht mehr gebunden; das npm-Paket liefert es über `prepublishOnly` und `common.nogit`",
@@ -80,19 +93,6 @@
         "pl": "Zastąpiono sterowanie akumulatorem oparte na zużyciu energii (włączanie przełącznika, obliczony limit rozładowania, bicie serca) na zawsze włączony kanał „StoredgeControlblock”, który odsłania wszystkie dziewięć rejestrów Global StorEdge Control Block, odczyt i zapis, bez konfiguracji administratora\nUdokumentowano nowy kanał `StoredgeControlBlock` w README",
         "uk": "Замінено контроль акумулятора на основі споживання (включення перемикача, обчислене обмеження розряду, серцебиття) на постійно увімкнений канал `StoredgeControlBlock`, що відкриває всі дев'ять реєстрів Global StoreEdge Control Block, читання та запис, без конфігурації адміністратора\nЗадокументовано новий канал `StoredgeControlBlock` у README",
         "zh-cn": "将基于消耗的电池控制（启用开关、计算的放电限值、心跳信号）替换为始终开启的 “StoredgeControlBlock” 通道，该通道暴露了所有九个全球 StoreEdge 控制块寄存器（读取和写入），无需管理员配置\n在自述文件中记录了新的 `storedgeControlBlock` 频道"
-      },
-      "0.0.3": {
-        "en": "Split documentation into user (README.md) and developer (README_dev.md) guides\nDocumented the alternate Modbus TCP port 1502\nStopped versioning generated build output",
-        "de": "Dokumentation in Benutzer- (README.md) und Entwicklerhandbücher (README_DEV.MD) teilen\nDokumentierte den Modbus TCP-Port 1502\nVersionierung der Build-Ausgabe beendet",
-        "ru": "Разделите документацию на руководства для пользователей (README.md) и разработчиков (README_dev.md)\nДокументировано использование альтернативного TCP-порта Modbus 1502\nПрекращено управление версиями, сгенерированные выходные данные сборки",
-        "pt": "Divida a documentação em guias de usuário e desenvolvedor\nDocumentou a outra porta Modbus TCP 1502\nParou de versionar a saída de build gerada",
-        "nl": "Documentatie opsplitsen in gebruikershandleidingen (README.md) en ontwikkelaarshandleidingen (README_dev.md)\nDe alternatieve Modbus TCP-poort 1502 gedocumenteerd\nGestopt versiebeheer genereerde build-output",
-        "fr": "Répartir la documentation en guides utilisateur (README.md) et développeur (README_DEV.md)\nA documenté le port Modbus TCP alternatif 1502\nArrêt du versionnage généré par le build",
-        "it": "Dividi la documentazione in guide per utente (README.md) e sviluppatore (README_DEV.md)\nHo documentato la porta Modbus TCP 1502 alternativa\nIl controllo delle versioni ha generato output",
-        "es": "Divida la documentación en guías de usuario (README.md) y de desarrollador (README_DEV.md)\nDocumentó el puerto Modbus TCP 1502 alternativo\nDejó de versionar la salida de compilación",
-        "pl": "Podziel dokumentację na podręczniki użytkownika (README.md) i programistów (README_dev.md)\nUdokumentowano alternatywny port Modbus TCP 1502\nZatrzymano wersję generowanych wyników kompilacji",
-        "uk": "Розділіть документацію на посібники користувача (README.md) та розробника (README_dev.md)\nЗадокументований альтернативний порт Modbus TCP 1502\nЗупинено версійне створення вихідних даних збірки",
-        "zh-cn": "将文档拆分为用户 (README.md) 和开发者 (README_dev.md) 指南\n已记录备用 Modbus TCP 端口 1502\n停止版本控制生成的编译输出"
       }
     },
     "titleLang": {

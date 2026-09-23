@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.6 (2026-09-23)
 * (René Meyer) The compiled `build/` folder is now committed to the repository so the adapter can be installed directly from GitHub; dropped the `common.nogit` flag and the `prepublishOnly` build hook
 * (René Meyer) Made the adapter logo square (512x512) and reduced its size in the README
 
@@ -148,10 +148,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### 1.0.2 (2026-09-22)
 * (René Meyer) Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)
 * (René Meyer) The CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script
-
-### 1.0.1 (2026-09-22)
-* (René Meyer) Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems
-* (René Meyer) Admin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
