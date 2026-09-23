@@ -131,6 +131,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     ### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
+* (René Meyer) Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15
 
 ### 1.0.7 (2026-09-23)
 * (René Meyer) Pending changes for the next release
