@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.3 (2026-09-22)
+- (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
+
 ## 1.0.2 (2026-09-22)
 * (René Meyer) Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)
 * (René Meyer) The CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script

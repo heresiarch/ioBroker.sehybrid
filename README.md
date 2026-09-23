@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.8 (2026-09-23)
 * (René Meyer) Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15
 
 ### 1.0.7 (2026-09-23)
@@ -147,9 +147,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 * (René Meyer) Fixed the admin icon and static admin files being excluded from the repository
 * (René Meyer) Upgraded the admin UI build tooling to Vite 8
 * (René Meyer) Various repository/CI cleanups to satisfy the ioBroker adapter checker
-
-### 1.0.3 (2026-09-22)
-- (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "news": {
+      "1.0.8": {
+        "en": "Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15",
+        "de": "Adressieren Sie die Vorschläge des IOBrokers: Verwenden Sie ein Caret-Feld für die Modbus-Serial−Abhängigkeit, stellen Sie Dependabot auf Cron-Zeitpläne um und erhöhen Sie das Limit auf 15.",
+        "ru": "Обратитесь к рекомендациям по проверке репозиториев IOBroker: используйте диапазон кареток для зависимости `modbus-serial`, переключите Dependabot на расписание cron и увеличьте лимит открытых запросов на pull-запросы до 15",
+        "pt": "Sugestões do IOBroker repo Checker: use um intervalo de cursor para a dependência `modbus-serial`, mude Dependabot para cron schedules e aumente o limite de openpull para 15",
+        "nl": "Adresseer suggesties voor de repochecker van IOBroker: gebruik een caretbereik voor de afhankelijkheid van `modbus-serial`, schakel Dependabot over naar cron-schema's en verhoog de limiet voor open pull-aanvragen naar 15",
+        "fr": "Répondez aux suggestions du vérificateur de repo IObroker : utilisez un caret pour la dépendance « modbus-serial », passez Dependabot à Cron Schedules et augmentez la limite de requêtes ouvertes à 15",
+        "it": "Indirizzi i suggerimenti di IOBroker repo Checker: usi un intervallo di accenti per la dipendenza `modbus-serial`, passi Dependabot a cron schedules e alza il limite di richieste aperte a 15",
+        "es": "Aborde las sugerencias del revisor de repositorios de IOBroker: use un intervalo de intercalas para la dependencia «modbus-serial», cambie el Dependabot por cronogramas y aumente el límite de solicitudes abiertas a 15",
+        "pl": "Odpowiedź na sugestie sprawdzania repo ioBroker: użyj zakresu karet dla zależności „modbus-serial”, przełącz Dependabot na harmonogramy cron i zwiększ limit żądań otwartych pull-requestów do 15",
+        "uk": "Адреса пропозицій перевірки репозиторіїв IObroker: використовуйте діапазон карт для залежності `modbus-serial`, переключіть Dependabot на графіки cron та підвищуйте ліміт відкритих запитів до 15",
+        "zh-cn": "解决 IOBroker 回购检查器的建议：对 modbus-serial 依赖项使用插入符号范围，将 Dependabot 切换到 cron 计划，并将开放拉取请求限制提高到 15"
+      },
       "1.0.7": {
         "en": "Pending changes for the next release",
         "de": "Änderungen im nächsten Release",
@@ -80,19 +93,6 @@
         "pl": "Usunięto skrypt npm `install:src-admin` z package.json; pakiet nie zawiera teraz żadnych skryptów związanych z instalacją (rozwiązuje problem #6)\nZadanie CI lint instaluje zależności interfejsu administratora wbudowane w przepływie pracy zamiast za pośrednictwem skryptu package.json",
         "uk": "Вилучено скрипт npm `install:src-admin` з package.json; пакунок тепер взагалі не містить скриптів, пов'язаних з установкою (вирішує проблему #6)\nЗавдання CI lint встановлює залежності інтерфейсу адміністратора в робочий процес, а не через скрипт package.json",
         "zh-cn": "从 package.json 中删除了 `install: src-admin` npm 脚本；该软件包现在根本不包含与安装相关的脚本（解决了问题 #6）\nCI lint 作业在工作流程中内联安装管理界面依赖项，而不是通过 package.json 脚本安装"
-      },
-      "1.0.1": {
-        "en": "Removed the `postinstall` hook that ran npm operations on install; the adapter no longer installs any development dependencies on end-user systems\nAdmin UI dependencies are now bootstrapped only during the build (dev/CI), not via a package lifecycle hook",
-        "de": "Der „Postinstall“ -Hook, der NPM-Operationen ausführte, wurde entfernt; der Adapter installiert keine Endbenutzersysteme mehr\nAdmin-UI-Abhängigkeiten werden jetzt nur beim Build (Dev/CI) gebootet, nicht per Paket-Lifecycle-Hook",
-        "ru": "Удален хук `postinstall`, который запускал операции npm при установке; адаптер больше не устанавливает никаких зависимостей разработки в системах конечных пользователей\nЗависимости пользовательского интерфейса администратора теперь загружаются только во время сборки (dev/CI), а не с помощью метода жизненного цикла пакета",
-        "pt": "Removido o gancho `postinstall` que executava o npm; o adaptador não instala mais dependências de desenvolvimento em sistemas finais\nAgora, as dependências do Admin UI só são inicializadas durante a compilação (Dev/CI), não por meio de um pacote",
-        "nl": "De `postinstall` hook verwijderd die npm-bewerkingen uitvoerde tijdens de installatie; de adapter installeert geen ontwikkelingsafhankelijkheden meer op systemen van eindgebruikers\nDe afhankelijkheden van de gebruikersinterface van de beheerder worden nu alleen tijdens de build opgestart (Dev/CI), niet via een hook voor de levenscyclus van een pakket",
-        "fr": "Suppression du hook « postinstall » qui exécutait npm lors de l'installation ; l'adaptateur n'installe plus de dépendances de développement sur les systèmes des utilisateurs\nLes dépendances de l'interface d'administration ne sont démarrées que lors de la compilation (Dev/CI)",
-        "it": "Rimosso l'hook `postinstall` che eseguiva npm all'installazione; l'adattatore non installa più dipendenze di sviluppo sui sistemi degli utenti finali\nLe dipendenze Admin UI ora vengono avviate solo durante la build (dev/CI), non tramite un package lifecycle hook",
-        "es": "Se ha eliminado el enlace «postinstalación» que ejecutaba npm en la instalación; el adaptador ya no instala ninguna dependencia de desarrollo en los sistemas de usuario final\nLas dependencias de la UI de administrador ahora solo se inician durante la creación (dev/CI), no mediante un enlace de ciclo de vida",
-        "pl": "Usunięto hak „postinstall”, który uruchamiał operacje npm podczas instalacji; adapter nie instaluje już żadnych zależności programistycznych na systemach użytkownika końcowego\nZależności interfejsu administratora są teraz uruchamiane tylko podczas kompilacji (Dev/CI), a nie za pomocą haczyka cyklu życia pakietu",
-        "uk": "Вилучено хук `postinstall`, який виконував операції npm під час встановлення; адаптер більше не встановлює жодних залежностей розробки на системах кінцевого користувача\nЗалежності від інтерфейсу адміністратора тепер завантажуються лише під час збирання (Dev/CI), а не через хук життєвого циклу пакета",
-        "zh-cn": "移除了在安装时运行 npm 操作的 postinstall 挂钩；适配器不再在最终用户系统上安装任何开发依赖项\n管理界面依赖项现在只能在构建期间启动 (dev/CI)，而不是通过包生命周期挂钩引导"
       }
     },
     "titleLang": {
