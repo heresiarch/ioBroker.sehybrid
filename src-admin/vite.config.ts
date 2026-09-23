@@ -1,23 +1,11 @@
 import react from '@vitejs/plugin-react';
-import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig } from 'vite';
 
 // Vite config for the sehybrid admin UI.
 // The build output goes to src-admin/build and is copied into admin/ by ../tasks.js.
-//
-// Set ANALYZE=1 to also emit build/stats.html with the treemap of the bundle.
-const analyze = process.env.ANALYZE === '1';
 
 export default defineConfig({
-    plugins: [
-        react(),
-        analyze &&
-            visualizer({
-                filename: 'build/stats.html',
-                gzipSize: true,
-                brotliSize: true,
-            }),
-    ],
+    plugins: [react()],
     base: './',
     resolve: {
         // Some transitive deps pull in the CommonJS `lodash` while others use `lodash-es`,
