@@ -1,4 +1,4 @@
-![Logo](admin/sehybrid.png)
+<img src="admin/sehybrid.png" alt="Logo" width="100" />
 
 # ioBroker.sehybrid
 
