@@ -15,7 +15,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { I18n, type AdminConnection, type IobTheme } from '@iobroker/adapter-react-v5';
+import { I18n, type AdminConnection, type IobTheme } from '@iobroker/gui-components';
 
 // Shared, pure config validation reused by the adapter and this admin form.
 // We import the SAME validateConfig / sunspec helpers from the adapter's src/lib

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyledEngineProvider, ThemeProvider } from '@mui/material/styles';
 
-import { GenericApp, Loader, type GenericAppProps, type GenericAppSettings } from '@iobroker/adapter-react-v5';
+import { GenericApp, Loader, type GenericAppProps, type GenericAppSettings } from '@iobroker/gui-components';
 
 import Settings from './components/Settings';
 
