@@ -22,7 +22,7 @@ Remote Control and related storage settings directly (see [StorEdge control bloc
 
 ## Requirements
 
-- A SolarEdge hybrid inverter with **Modbus TCP enabled** and reachable on your network.
+- A [SolarEdge Home Hub (hybrid) inverter](https://www.solaredge.com/en/products/residential/pv-inverters/solaredge-home-hub-inverters) with **Modbus TCP enabled** and reachable on your network.
 - ioBroker with `js-controller` >= 6.0.11 and `admin` >= 7.0.23.
 
 > Modbus TCP is usually enabled in the inverter's SetApp / installer menu. The default TCP port is **502** or **1502**.

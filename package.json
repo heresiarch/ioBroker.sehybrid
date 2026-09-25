@@ -15,8 +15,12 @@
   "homepage": "https://github.com/heresiarch/ioBroker.sehybrid",
   "license": "MIT",
   "keywords": [
-    "ioBroker",
-    "SolarEdge Hybrid Adapter iobroker"
+    "SolarEdge",
+    "modbus",
+    "inverter",
+    "battery",
+    "storedge",
+    "photovoltaics"
   ],
   "repository": {
     "type": "git",

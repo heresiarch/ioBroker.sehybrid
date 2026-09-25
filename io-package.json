@@ -95,18 +95,19 @@
         "zh-cn": "提交了编译后的 build/` 输出，以便可以直接从 GitHub 安装适配器\n修复了管理员图标和静态管理文件被排除在存储库中的问题\n将管理界面构建工具升级到 Vite 8\n各种存储库/CI 清理以满足 IOBroker 适配器检查器的需求"
       }
     },
+    "title": "sehybrid",
     "titleLang": {
-      "en": "Instance settings",
-      "de": "Instanzeinstellungen",
-      "ru": "Настройки экземпляра",
-      "pt": "Configurações de instância",
-      "nl": "Instantie-instellingen",
-      "fr": "Paramètres des instances",
-      "it": "Impostazioni dell'istanza",
-      "es": "Configuración de instancia",
-      "pl": "Ustawienia instancji",
-      "uk": "Налаштування примірника",
-      "zh-cn": "实例设置"
+      "en": "sehybrid",
+      "de": "sehybrid",
+      "ru": "sehybrid",
+      "pt": "sehybrid",
+      "nl": "sehybrid",
+      "fr": "sehybrid",
+      "it": "sehybrid",
+      "es": "sehybrid",
+      "pl": "sehybrid",
+      "uk": "sehybrid",
+      "zh-cn": "sehybrid"
     },
     "desc": {
       "en": "ioBroker adapter for monitoring and controlling SolarEdge hybrid inverters. Provides access to PV, battery, and operational data, with features such as export power limitation and Storage Control modes.",
