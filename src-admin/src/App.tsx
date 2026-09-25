@@ -40,10 +40,16 @@ class App extends GenericApp {
             },
         };
 
-        // during development the UI runs on port 3000, but the admin socket is on 8081
-        extendedProps.socket = { port: parseInt(window.location.port, 10) || 8081 };
-        if (extendedProps.socket.port === 3000) {
-            extendedProps.socket.port = 8081;
+        // Only override the socket port for the Vite dev server (port 3000), where the
+        // UI and the admin socket live on different ports. In every real ioBroker
+        // deployment the socket must reuse window.location (host, port AND protocol) so
+        // it works behind reverse proxies, on HTTPS/wss, and on non-default admin ports.
+        // socket-client already defaults port/host/protocol from window.location, so we
+        // pass nothing in production — forcing a numeric port here broke HTTPS setups
+        // (location.port is "" on 443, so the old `|| 8081` produced wss://host:8081 and
+        // the socket closed with CLOSE_ABNORMAL / "No READY flag" in an endless re-init).
+        if (window.location.port === '3000') {
+            extendedProps.socket = { port: 8081 };
         }
 
         super(props, extendedProps);

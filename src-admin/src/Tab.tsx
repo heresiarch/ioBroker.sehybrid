@@ -40,9 +40,11 @@ class Tab extends GenericApp {
             },
         };
 
-        extendedProps.socket = { port: parseInt(window.location.port, 10) || 8081 };
-        if (extendedProps.socket.port === 3000) {
-            extendedProps.socket.port = 8081;
+        // See App.tsx: only override the socket port for the Vite dev server (3000).
+        // In production, let socket-client derive host/port/protocol from window.location
+        // so HTTPS/wss and reverse-proxy/non-default-port setups work.
+        if (window.location.port === '3000') {
+            extendedProps.socket = { port: 8081 };
         }
 
         super(props, extendedProps);
