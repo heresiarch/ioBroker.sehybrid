@@ -23,12 +23,16 @@ admin/i18n/*/flat.txt
 src-admin/build/
 
 # admin/ holds BOTH hand-maintained static files (icon .png, jsonCustom.json,
-# style.css, i18n) and generated Vite output. Only the generated output is
-# ignored; the hand-maintained files are committed (see tasks.js, which
-# preserves .png/.json/.css/i18n on clean).
-admin/assets/
-admin/index.html
-admin/tab.html
+# style.css, i18n) and generated Vite output.
+#
+# The generated Vite output (admin/assets/, admin/index.html, admin/tab.html) IS
+# committed so the adapter can be installed directly from GitHub. ioBroker forbids
+# install lifecycle scripts, so there is no build-on-install; committing the built
+# admin UI is the only way a GitHub install (iobroker install <github-url>) gets a
+# working admin page. Otherwise `admin/index.html` is missing and the instance
+# settings show "File index.html not found" (404). Rebuilt on release via
+# release-script's before_commit hook, same as build/. This mirrors the build/
+# strategy below.
 
 # build/ (TypeScript compile output from src/) IS committed so the adapter can be
 # installed directly from GitHub. ioBroker forbids install lifecycle scripts, so
