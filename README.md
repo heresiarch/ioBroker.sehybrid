@@ -133,7 +133,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ## Changelog
 
-## **WORK IN PROGRESS**
+### **WORK IN PROGRESS**
 * minor fixes
 
 ### 1.0.11 (2026-09-25)
