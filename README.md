@@ -13,7 +13,15 @@
 > ⚠️ **Work in progress — use at your own risk.** This adapter is under active development. Interfaces and state
 > trees may change between versions.
 
-## SolarEdge hybrid inverter adapter for ioBroker
+## Disclaimer
+
+This project is an independent open-source project and is not affiliated with, endorsed by, or sponsored by SolarEdge Technologies, Inc. or its affiliates.
+
+SolarEdge and SolarEdge Home Hub are trademarks of SolarEdge Technologies, Inc. This project uses these names solely to identify the products with which the adapter is compatible.
+
+
+
+## ioBroker adapter for SolarEdge hybrid inverters
 
 Monitors and controls SolarEdge hybrid inverters over **Modbus TCP** (SunSpec). It reads PV, battery and
 operational data from the inverter and exposes it as ioBroker states. It also exposes the inverter's StorEdge
