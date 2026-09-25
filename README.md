@@ -126,10 +126,10 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ## Changelog
 
-<!--
-    Placeholder for the next version (at the beginning of the line):
-    ### **WORK IN PROGRESS**
--->
+### **WORK IN PROGRESS**
+* hotfix for missing static files in npm
+* hotfix for port issue
+
 ### 1.0.9 (2026-09-25)
 * fixed lint config
 * checked that responsive design is working
