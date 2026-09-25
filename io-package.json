@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "news": {
+      "1.0.12": {
+        "en": "minor fixes",
+        "de": "Kleine Fixes",
+        "ru": "незначительные исправления",
+        "pt": "pequenas correções",
+        "nl": "kleine aanpassingen",
+        "fr": "bugs mineurs",
+        "it": "fix minori",
+        "es": "pequeños arreglos",
+        "pl": "drobne poprawki",
+        "uk": "незначні виправлення",
+        "zh-cn": "小修复"
+      },
       "1.0.11": {
         "en": "fixed doc",
         "de": "Fester Dok",
@@ -80,19 +93,6 @@
         "pl": "Skompilowany folder `build/` jest teraz przekazany do repozytorium, więc adapter można zainstalować bezpośrednio z GitHub; upuszczono flagę `common.nogit` i haczyk kompilacji `PrePublishOnly`\nWykonało kwadratowe logo adaptera (512x512) i zmniejszyło jego rozmiar w README",
         "uk": "Скомпільована тека `build/` тепер підключена до сховища, тому адаптер можна встановити безпосередньо з GitHub; скинуто прапор `common.nogit` та хук збірки `PrePublishOnly`\nЗробив логотип адаптера квадратним (512х512) і зменшив його розмір в README",
         "zh-cn": "编译后的 build/` 文件夹现在已提交到存储库，因此可以直接从 GitHub 安装适配器；删除了 common.nogit 标志和 prepublishOnly 编译挂钩\n将适配器徽标设置为方形 (512x512)，并在自述文件中缩小了其大小"
-      },
-      "1.0.5": {
-        "en": "Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`",
-        "de": "Hat das kanonische Full-Typescript-Adapter-Layout übernommen: `build/` ist nicht mehr gebunden; das npm-Paket liefert es über `prepublishOnly` und `common.nogit`",
-        "ru": "Принята каноническая компоновка адаптера Full-TypeScript: `build/` больше не фиксируется; пакет npm поставляет его через `PrepublishOnly` и `common.nogit`",
-        "pt": "Adotou o layout canônico do adaptador Full-TypeScript: `build/` não é mais confirmado; o pacote npm o envia via `prepublishOnly` e `common.nogit`",
-        "nl": "Ik heb de canonieke indeling van de Full-TypeScript-adapter overgenomen: `build/` is niet langer vastgelegd; het npm-pakket verzendt deze via `PrePublishOnly` en `common.nogit`",
-        "fr": "A adopté le schéma canonique de l'adaptateur Full-TypeScript : « build/ » n'est plus validé ; le package npm l'expédie via « PrepublishOnly » et « common.nogit »",
-        "it": "Ha adottato il layout canonico dell'adattatore Full-TypeScript: `build/` non è più commit; il pacchetto npm lo invia via `PrepublishOnly` e `common.nogit`",
-        "es": "Adoptó el diseño canónico del adaptador de texto completo: `build/` ya no se confirma; el paquete npm lo envía mediante `PrePublishOnly` y `common.nogit`",
-        "pl": "Przyjęto kanoniczny układ adaptera Full-TypeScript: `build/` nie jest już zatwierdzany; pakiet npm dostarcza go za pośrednictwem `PrePublishOnly` i `common.nogit`",
-        "uk": "Прийнято канонічний макет адаптера повного TypeScript: `build/` більше не виконується; пакет npm надсилає його через `PrePublishOnly` та `common.nogit`",
-        "zh-cn": "采用了规范的完整 TypeScript 适配器布局：不再提交 `build/`；npm 包通过 `prepublishOnly` 和 `common.nogit` 发送"
       }
     },
     "title": "sehybrid",

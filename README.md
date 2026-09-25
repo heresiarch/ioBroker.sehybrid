@@ -132,8 +132,7 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
-
-### **WORK IN PROGRESS**
+### 1.0.12 (2026-09-25)
 * minor fixes
 
 ### 1.0.11 (2026-09-25)
@@ -149,9 +148,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ### 1.0.8 (2026-09-23)
 * (René Meyer) Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15
-
-### 1.0.7 (2026-09-23)
-* (René Meyer) Pending changes for the next release
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
