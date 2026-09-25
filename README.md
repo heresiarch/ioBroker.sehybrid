@@ -130,7 +130,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 1.0.9 (2026-09-25)
 * fixed lint config
 * checked that responsive design is working
 
@@ -146,11 +146,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ### 1.0.5 (2026-09-22)
 * (René Meyer) Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`
-
-### 1.0.4 (2026-09-22)
-* (René Meyer) Fixed the admin icon and static admin files being excluded from the repository
-* (René Meyer) Upgraded the admin UI build tooling to Vite 8
-* (René Meyer) Various repository/CI cleanups to satisfy the ioBroker adapter checker
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 

@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "news": {
+      "1.0.9": {
+        "en": "fixed lint config\nchecked that responsive design is working",
+        "de": "Feste Lint Config\ngeprüft, ob responsives Design läuft",
+        "ru": "фиксированная конфигурация линта\nпроверил, работает ли адаптивный дизайн",
+        "pt": "lint config fixo\nverifiquei se o design responsivo funciona",
+        "nl": "vaste lintconfiguratie\nIk heb gecontroleerd of het responsieve ontwerp werkt",
+        "fr": "fixed lint config\na vérifié que le design réactif fonctionne",
+        "it": "fix lint config\nverificato che il responsive design funzioni",
+        "es": "lint config fijo\ncomprobó que el diseño responsivo funciona",
+        "pl": "stała konfiguracja kłaczków\nsprawdziłem, czy responsywny projekt działa",
+        "uk": "виправлена конфігурація lint\nперевірено, що адаптивний дизайн працює",
+        "zh-cn": "固定的 lint 配置\n已检查响应式设计是否有效"
+      },
       "1.0.8": {
         "en": "Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15",
         "de": "Adressieren Sie die Vorschläge des IOBrokers: Verwenden Sie ein Caret-Feld für die Modbus-Serial−Abhängigkeit, stellen Sie Dependabot auf Cron-Zeitpläne um und erhöhen Sie das Limit auf 15.",
@@ -80,19 +93,6 @@
         "pl": "Adapter wymaga teraz administratora >= 7.8.23.",
         "uk": "Адаптер вимагає адміністратора >= 7.8.23 зараз.",
         "zh-cn": "适配器现在需要管理员 >= 7.8.23。"
-      },
-      "1.0.2": {
-        "en": "Removed the `install:src-admin` npm script from package.json; the package now contains no install-related scripts at all (addresses issue #6)\nThe CI lint job installs admin UI dependencies inline in the workflow instead of via a package.json script",
-        "de": "Das npm-Skript `install:src-admin` aus package.json entfernt; es enthält jetzt keine Installationsskripte (behebt Problem #6)\nDer CI-Lint-Job installiert Admin-UI-Abhängigkeiten im Workflow statt per package.json-Skript",
-        "ru": "Удален сценарий npm `install:src-admin` из package.json; теперь пакет вообще не содержит сценариев, связанных с установкой (устранена проблема #6)\nЗадание CI lint устанавливает зависимости пользовательского интерфейса администратора непосредственно в рабочем процессе, а не с помощью скрипта package.json.",
-        "pt": "Removido o script npm `install:src-admin` do package.json; o pacote agora não contém nenhum script de instalação (resolve o problema #6)\nO CI lint job instala dependências de admin no fluxo de trabalho em vez de usar o script package.json",
-        "nl": "Het npm-script `install:src-admin` is verwijderd uit package.json; het pakket bevat nu helemaal geen scripts die verband houden met de installatie (lost probleem #6 op)\nDe CI lint-taak installeert afhankelijkheden van de beheerdersinterface inline in de workflow in plaats van via een package.json-script",
-        "fr": "Le script npm `install:src-admin` a été supprimé de package.json ; il ne contient plus aucun script lié à l'installation (résolution du problème #6)\nLe job CI lint installe les dépendances de l'interface d'administration en ligne au lieu d'utiliser un script package.json",
-        "it": "Rimosso lo script npm `install:src-admin` da package.json; ora non contiene script relativi all'installazione (risolve il problema #6)\nIl CI lint job installa le dipendenze admin UI in linea anziché tramite uno script package.json",
-        "es": "Se ha eliminado el script npm `install:src-admin` de package.json; el paquete ahora no contiene ningún guion relacionado con la instalación (aborda el problema #6)\nEl trabajo CI lint instala las dependencias de la UI de administrador en línea y no mediante un script package.json",
-        "pl": "Usunięto skrypt npm `install:src-admin` z package.json; pakiet nie zawiera teraz żadnych skryptów związanych z instalacją (rozwiązuje problem #6)\nZadanie CI lint instaluje zależności interfejsu administratora wbudowane w przepływie pracy zamiast za pośrednictwem skryptu package.json",
-        "uk": "Вилучено скрипт npm `install:src-admin` з package.json; пакунок тепер взагалі не містить скриптів, пов'язаних з установкою (вирішує проблему #6)\nЗавдання CI lint встановлює залежності інтерфейсу адміністратора в робочий процес, а не через скрипт package.json",
-        "zh-cn": "从 package.json 中删除了 `install: src-admin` npm 脚本；该软件包现在根本不包含与安装相关的脚本（解决了问题 #6）\nCI lint 作业在工作流程中内联安装管理界面依赖项，而不是通过 package.json 脚本安装"
       }
     },
     "titleLang": {

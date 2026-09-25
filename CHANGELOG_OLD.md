@@ -1,4 +1,9 @@
 # Older changes
+## 1.0.4 (2026-09-22)
+* (René Meyer) Fixed the admin icon and static admin files being excluded from the repository
+* (René Meyer) Upgraded the admin UI build tooling to Vite 8
+* (René Meyer) Various repository/CI cleanups to satisfy the ioBroker adapter checker
+
 ## 1.0.3 (2026-09-22)
 - (ioBroker-Bot) Adapter requires admin >= 7.8.23 now.
 
