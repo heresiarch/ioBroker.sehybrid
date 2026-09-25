@@ -133,6 +133,9 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* fixed doc
+
 ### 1.0.10 (2026-09-25)
 * hotfix for missing static files in npm
 * hotfix for port issue
