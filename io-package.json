@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "news": {
+      "1.0.10": {
+        "en": "hotfix for missing static files in npm\nhotfix for port issue",
+        "de": "Hotfix für fehlende Dateien in NPM\nHotfix für Portproblem",
+        "ru": "исправление для отсутствия статических файлов в npm\nисправление проблемы с портом",
+        "pt": "hotfix para perder arquivos estáticos no npm\nhotfix for port issue",
+        "nl": "hotfix voor ontbrekende statische bestanden in npm\nhotfix voor een probleem met de poort",
+        "fr": "correctif pour fichiers statiques perdus dans NPM\nhotfix for port issue",
+        "it": "hotfix per file statici mancanti in npm\nhotfix per le porte",
+        "es": "revisión de archivos estáticos faltantes en npm\nhotfix para Port Issue",
+        "pl": "poprawka dla brakujących plików statycznych w npm\npoprawka dotycząca problemu z portem",
+        "uk": "виправлення для відсутніх статичних файлів у npm\nвиправлення проблеми з портом",
+        "zh-cn": "修复 npm 中缺少静态文件的问题\n端口问题的修补程序"
+      },
       "1.0.9": {
         "en": "fixed lint config\nchecked that responsive design is working",
         "de": "Feste Lint Config\ngeprüft, ob responsives Design läuft",
@@ -80,19 +93,6 @@
         "pl": "Zlecono skompilowane wyjście `build/`, aby adapter mógł być zainstalowany bezpośrednio z GitHub\nNaprawiono wykluczenie z repozytorium ikony administratora i statycznych plików administracyjnych\nUaktualniono narzędzia do kompilacji interfejsu administratora do Vite 8\nRóżne czyszczenie repozytoriów/CI w celu zaspokojenia modułu sprawdzania adaptera iOBroker",
         "uk": "Здійснено компільований вихід `build/`, щоб адаптер можна було встановити безпосередньо з GitHub\nВиправлено значок адміністратора та статичні файли адміністратора, які виключаються зі сховища\nОновлено інструмент збирання інтерфейсу адміністратора до Vite 8\nРізні очищення сховища/CI, щоб задовольнити перевірку адаптера IObroker",
         "zh-cn": "提交了编译后的 build/` 输出，以便可以直接从 GitHub 安装适配器\n修复了管理员图标和静态管理文件被排除在存储库中的问题\n将管理界面构建工具升级到 Vite 8\n各种存储库/CI 清理以满足 IOBroker 适配器检查器的需求"
-      },
-      "1.0.3": {
-        "en": "Adapter requires admin >= 7.8.23 now.",
-        "de": "Adapter benötigt jetzt admin >= 7.8.23.",
-        "ru": "Теперь для адаптера требуется администратор >= 7.8.23.",
-        "pt": "Agora o adaptador exige admin >= 7.8.23.",
-        "nl": "Voor de adapter is nu admin >= 7.8.23 vereist.",
-        "fr": "Adapter nécessite admin >= 7.8.23.",
-        "it": "Adapter richiede admin >= 7.8.23 ora.",
-        "es": "El adaptador ahora necesita admin >= 7.8.23",
-        "pl": "Adapter wymaga teraz administratora >= 7.8.23.",
-        "uk": "Адаптер вимагає адміністратора >= 7.8.23 зараз.",
-        "zh-cn": "适配器现在需要管理员 >= 7.8.23。"
       }
     },
     "titleLang": {

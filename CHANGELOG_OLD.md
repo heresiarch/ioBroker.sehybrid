@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.5 (2026-09-22)
+* (René Meyer) Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`
+
 ## 1.0.4 (2026-09-22)
 * (René Meyer) Fixed the admin icon and static admin files being excluded from the repository
 * (René Meyer) Upgraded the admin UI build tooling to Vite 8

@@ -125,8 +125,7 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
-
-### **WORK IN PROGRESS**
+### 1.0.10 (2026-09-25)
 * hotfix for missing static files in npm
 * hotfix for port issue
 
@@ -143,9 +142,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### 1.0.6 (2026-09-23)
 * (René Meyer) The compiled `build/` folder is now committed to the repository so the adapter can be installed directly from GitHub; dropped the `common.nogit` flag and the `prepublishOnly` build hook
 * (René Meyer) Made the adapter logo square (512x512) and reduced its size in the README
-
-### 1.0.5 (2026-09-22)
-* (René Meyer) Adopted the canonical full-TypeScript adapter layout: `build/` is no longer committed; the npm package ships it via `prepublishOnly` and `common.nogit`
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
