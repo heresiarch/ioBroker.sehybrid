@@ -240,7 +240,7 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
         }
     }
 
-    private renderTestStatus(): React.JSX.Element | null {
+    private renderTestStatus(): React.ReactNode {
         const { testStatus } = this.state;
 
         switch (testStatus.kind) {
