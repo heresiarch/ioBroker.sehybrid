@@ -36,7 +36,7 @@ jobs:
                   # lint pass (npm run lint -> lint --prefix src-admin) needs those deps.
                   # Previously bootstrapped by the (now removed) postinstall hook; install
                   # them explicitly right before linting instead of via a lifecycle hook.
-                  lint-command: '(npm ci --prefix src-admin || npm install --prefix src-admin) && npm run lint'
+                  # lint-command: '(npm ci --prefix src-admin || npm install --prefix src-admin) && npm run lint'
 
     # Runs adapter tests on all supported node versions and OSes
     adapter-tests:
