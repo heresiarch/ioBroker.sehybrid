@@ -130,6 +130,10 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* fixed lint config
+* checked that responsive design is working
+
 ### 1.0.8 (2026-09-23)
 * (René Meyer) Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15
 
