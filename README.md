@@ -1,6 +1,6 @@
 <img src="admin/sehybrid.png" alt="Logo" width="100" />
 
-# ioBroker.sehybrid
+# ioBroker adapter for SolarEdge hybrid inverters
 
 [![NPM version](https://img.shields.io/npm/v/iobroker.sehybrid.svg)](https://www.npmjs.com/package/iobroker.sehybrid)
 [![Downloads](https://img.shields.io/npm/dm/iobroker.sehybrid.svg)](https://www.npmjs.com/package/iobroker.sehybrid)
@@ -21,7 +21,7 @@ SolarEdge and SolarEdge Home Hub are trademarks of SolarEdge Technologies, Inc. 
 
 
 
-## ioBroker adapter for SolarEdge hybrid inverters
+## Features and Functions
 
 Monitors and controls SolarEdge hybrid inverters over **Modbus TCP** (SunSpec). It reads PV, battery and
 operational data from the inverter and exposes it as ioBroker states. It also exposes the inverter's StorEdge
@@ -31,7 +31,6 @@ Remote Control and related storage settings directly (see [StorEdge control bloc
 ## Requirements
 
 - A [SolarEdge Home Hub (hybrid) inverter](https://www.solaredge.com/en/products/residential/pv-inverters/solaredge-home-hub-inverters) with **Modbus TCP enabled** and reachable on your network.
-- ioBroker with `js-controller` >= 6.0.11 and `admin` >= 7.0.23.
 
 > Modbus TCP is usually enabled in the inverter's SetApp / installer menu. The default TCP port is **502** or **1502**.
 
@@ -133,6 +132,10 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+
+## **WORK IN PROGRESS**
+* minor fixes
+
 ### 1.0.11 (2026-09-25)
 * fixed doc
 

@@ -171,7 +171,6 @@
       },
       "link": "tab.html"
     },
-    "supportCustoms": true,
     "eraseOnUpload": true,
     "dependencies": [
       {
