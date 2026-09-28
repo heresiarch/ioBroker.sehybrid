@@ -1,4 +1,8 @@
 # Older changes
+## 1.0.9 (2026-09-25)
+* fixed lint config
+* checked that responsive design is working
+
 ## 1.0.8 (2026-09-23)
 * (René Meyer) Address ioBroker repo checker suggestions: use a caret range for the `modbus-serial` dependency, switch Dependabot to cron schedules, and raise the open-pull-requests limit to 15
 

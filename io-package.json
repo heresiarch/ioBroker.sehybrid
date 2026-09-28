@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "news": {
+      "1.0.14": {
+        "en": "fix object states and enumerations",
+        "de": "Objektstatus und Aufzählungen korrigieren",
+        "ru": "исправить состояния и перечисления объектов",
+        "pt": "fixar estados e enumerações",
+        "nl": "objectstatussen en opsommingen corrigeren",
+        "fr": "états et énumérations des objets fixes",
+        "it": "fissa stati ed enumerazioni",
+        "es": "fijar estados y enumeraciones de objetos",
+        "pl": "naprawianie stanów obiektów i wyliczeń",
+        "uk": "виправлення станів об'єктів та перерахувань",
+        "zh-cn": "修复对象状态和枚举"
+      },
       "1.0.13": {
         "en": "minor fixes package.json",
         "de": "Kleine Fixes package.json",
@@ -80,19 +93,6 @@
         "pl": "Odpowiedź na sugestie sprawdzania repo ioBroker: użyj zakresu karet dla zależności „modbus-serial”, przełącz Dependabot na harmonogramy cron i zwiększ limit żądań otwartych pull-requestów do 15",
         "uk": "Адреса пропозицій перевірки репозиторіїв IObroker: використовуйте діапазон карт для залежності `modbus-serial`, переключіть Dependabot на графіки cron та підвищуйте ліміт відкритих запитів до 15",
         "zh-cn": "解决 IOBroker 回购检查器的建议：对 modbus-serial 依赖项使用插入符号范围，将 Dependabot 切换到 cron 计划，并将开放拉取请求限制提高到 15"
-      },
-      "1.0.7": {
-        "en": "Pending changes for the next release",
-        "de": "Änderungen im nächsten Release",
-        "ru": "Ожидаются изменения для следующей версии",
-        "pt": "Mudanças pendentes na próxima versão",
-        "nl": "In afwachting van wijzigingen voor de volgende release",
-        "fr": "À modifier pour la prochaine version",
-        "it": "In attesa di modifiche alla prossima release",
-        "es": "Cambios pendientes para la próxima versión",
-        "pl": "Oczekujące zmiany w następnej wersji",
-        "uk": "Очікуються зміни для наступного випуску",
-        "zh-cn": "等待下一个版本的更改"
       }
     },
     "titleLang": {
