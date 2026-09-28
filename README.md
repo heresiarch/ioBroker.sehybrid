@@ -132,6 +132,9 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+###
+* fix object states and enumerations
+ 
 ### 1.0.13 (2026-09-28)
 * minor fixes package.json
 

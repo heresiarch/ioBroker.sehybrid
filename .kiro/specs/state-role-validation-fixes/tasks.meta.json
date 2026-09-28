@@ -1,0 +1,161 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": {
+      "status": "passed",
+      "failingExample": "Exploration test correctly detected the bug (assertions failed on unfixed code, as required). Counterexamples:\n1) inverter.status role is 'indicator' while common.type is 'number' (expected 'value') — E1009. Same for inverter.statusVendor, battery.1.status, battery.1.statusInternal.\n2) StorEdgeControlBlock.storageControlMode role is 'level.mode' (expected 'level') — E1008 (role absent from catalogue). Same for storageAcChargePolicy, storageChargeDischargeDefaultMode, remoteControlCommandMode.\n3) Writable value.* roles on write=true controls — E1011: remoteControlChargeLimit/remoteControlDischargeLimit='value.power', storageAcChargeLimit='value.energy', remoteControlCommandTimeout='value.interval', storageBackupReservedSetting='value.fill'.",
+      "lastRunTimestamp": 1790616073624
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967299
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615973076
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616093728
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967356
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616097830
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616294813
+      }
+    ],
+    "3.1 Correct the role lookup tables in `src/lib/state-manager.ts`": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967407
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616300428
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616375561
+      }
+    ],
+    "3.2 Add the `common.states` enumeration to the four mode selectors (enhancement)": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967460
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616379732
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616538329
+      }
+    ],
+    "3.3 Update unit tests to match the corrected roles and the enumeration": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967537
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616542607
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616715227
+      }
+    ],
+    "3.4 Rebuild from `src/` to `build/`": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967607
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616719850
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616745821
+      }
+    ],
+    "3.5 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967664
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616751462
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616766338
+      }
+    ],
+    "3.6 Verify preservation tests still pass": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967722
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616771440
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790615967775
+      },
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616779325
+      }
+    ],
+    "3. Fix for invalid/incompatible state roles (13 states) + `common.states` enhancement (4 selectors)": [
+      {
+        "executionId": "0307e1a8-467f-4541-b666-c35641b30085",
+        "chatSessionId": "sess_dc3cd5f1-dcfd-46e1-9660-2291b8b5b2e0",
+        "timestamp": 1790616771491
+      }
+    ]
+  }
+}

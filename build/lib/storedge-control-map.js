@@ -41,7 +41,16 @@ const STORAGE_CONTROL_MODE = {
   iobType: "number",
   min: 0,
   max: 4,
-  fc: "FC06"
+  fc: "FC06",
+  // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+  // (base 0xE004). Enumeration of the mode-selector values 0..4.
+  states: {
+    0: "Disabled",
+    1: "Maximize Self Consumption",
+    2: "Time of Use",
+    3: "Backup Only",
+    4: "Remote Control"
+  }
 };
 const STORAGE_AC_CHARGE_POLICY = {
   name: "storageAcChargePolicy",
@@ -51,7 +60,15 @@ const STORAGE_AC_CHARGE_POLICY = {
   iobType: "number",
   min: 0,
   max: 3,
-  fc: "FC06"
+  fc: "FC06",
+  // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+  // (base 0xE004). Enumeration of the AC charge policy values 0..3.
+  states: {
+    0: "Disable",
+    1: "Always Allowed",
+    2: "Fixed Energy Limit",
+    3: "Percent of Production"
+  }
 };
 const STORAGE_AC_CHARGE_LIMIT = {
   name: "storageAcChargeLimit",
@@ -85,7 +102,20 @@ const STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE = {
   iobType: "number",
   min: 0,
   max: 7,
-  fc: "FC06"
+  fc: "FC06",
+  // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+  // (base 0xE004). Enumeration of the charge/discharge mode values. Value 6 is
+  // intentionally absent — the protocol defines no mode 6, so the map is sparse
+  // (the 0..7 range is unchanged).
+  states: {
+    0: "Off",
+    1: "Charge Excess PV Power Only",
+    2: "Charge from PV First",
+    3: "Charge from PV + AC",
+    4: "Maximize Export",
+    5: "Discharge to Meet Consumption",
+    7: "Maximize Self Consumption"
+  }
 };
 const REMOTE_CONTROL_COMMAND_TIMEOUT = {
   name: "remoteControlCommandTimeout",
@@ -107,7 +137,20 @@ const REMOTE_CONTROL_COMMAND_MODE = {
   iobType: "number",
   min: 0,
   max: 7,
-  fc: "FC06"
+  fc: "FC06",
+  // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+  // (base 0xE004). Same enumeration as Storage Charge/Discharge Default Mode.
+  // Value 6 is intentionally absent — the protocol defines no mode 6, so the map
+  // is sparse (the 0..7 range is unchanged).
+  states: {
+    0: "Off",
+    1: "Charge Excess PV Power Only",
+    2: "Charge from PV First",
+    3: "Charge from PV + AC",
+    4: "Maximize Export",
+    5: "Discharge to Meet Consumption",
+    7: "Maximize Self Consumption"
+  }
 };
 const REMOTE_CONTROL_CHARGE_LIMIT = {
   name: "remoteControlChargeLimit",

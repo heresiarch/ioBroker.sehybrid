@@ -1,0 +1,112 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test (BEFORE implementing the fix)
+  - **Property 1: Bug Condition** - Corrected states use catalogue-valid, compatible roles
+  - **CRITICAL**: These assertions MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: These assertions encode the expected (post-fix) roles - they validate the fix once they pass after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the 13 invalid/incompatible roles
+  - **Scoped PBT Approach**: The bug is deterministic per named state, so scope the property to the 13 concrete triggering states (the nine `STOREDGE_CONTROL_REGISTERS` + `inverter.status`, `inverter.statusVendor`, `battery.1.status`, `battery.1.statusInternal`) rather than random inputs, for reproducibility
+  - In `src/lib/state-manager.test.ts`, add/adjust assertions encoding the corrected roles from design Property 1 / Fix Implementation:
+    - `ensureState('inverter', status).common.role` should be `'value'` (currently `'indicator'`; `type = 'number'` — E1009) and likewise for `inverter.statusVendor`, `battery.1.status`, `battery.1.statusInternal`
+    - `remoteControlChargeLimit`, `remoteControlDischargeLimit`, `storageAcChargeLimit` roles should be `'level'` (currently read-only `value.power` / `value.energy` on `write = true` — E1011)
+    - `remoteControlCommandTimeout` role should be `'level.timer'` (currently `value.interval` on `write = true` — E1011)
+    - `storageBackupReservedSetting` role should be `'level.fill'` (currently `value.fill` on `write = true` — E1011)
+    - `remoteControlCommandMode`, `storageAcChargePolicy`, `storageChargeDischargeDefaultMode`, `storageControlMode` roles should be `'level'` (currently non-catalogue `level.mode` — E1008)
+  - Run the test suite on UNFIXED code: `npm run test:ts`
+  - **EXPECTED OUTCOME**: Assertions FAIL (this is correct - it proves the bug exists)
+  - Document counterexamples found (e.g. "`inverter.status` role is `'indicator'` while `type` is `'number'`"; "`remoteControlChargeLimit` role is `'value.power'` while `write = true`"; "`storageControlMode` role `'level.mode'` is absent from the catalogue")
+  - Mark task complete when tests are written, run, and failures are documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 1.11, 1.12, 1.13, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13_
+
+- [x] 2. Write preservation property tests (BEFORE implementing the fix)
+  - **Property 2: Preservation** - Non-buggy states unchanged
+  - **IMPORTANT**: Follow observation-first methodology - observe behavior on UNFIXED code, then encode it
+  - In `src/lib/state-manager.test.ts`, keep/observe and assert on UNFIXED code:
+    - Measurement roles preserved: over all non-status/non-info SunSpec value defs, `ensureState` still emits the same `value.*` role (e.g. `acPower -> value.power.active`, `acCurrent -> value.current`, `acEnergyWh -> value.energy`) (Req 3.1)
+    - Info roles preserved: `info`/scale-factor/identity defs still emit plain `value` (Req 3.1)
+    - StorEdge non-role attributes preserved: each of the nine controls keeps `write = true`, `read = true`, `type = number`, and identical `min` / `max` / `unit` (Req 3.2)
+    - Status non-role attributes preserved: each corrected status state keeps `type = number`, `read = true`, `write = false` (Req 3.3)
+    - **No stray `common.states`** (enhancement is additive on exactly four states): every StorEdge control that is NOT one of the four mode selectors (`remoteControlChargeLimit`, `remoteControlDischargeLimit`, `remoteControlCommandTimeout`, `storageAcChargeLimit`, `storageBackupReservedSetting`) and every status/measurement/info state has `common.states === undefined` — observe this on UNFIXED code so the post-fix assertion proves the enhancement adds the attribute nowhere except the four selectors (Req 3.2, 3.6)
+    - Additive nature preserved: adding `common.states` does not change any state's `type` / `read` / `write` / `min` / `max` / `unit`, the total object count (still 95), or ack behavior (Req 3.2, 3.6)
+    - Idempotency preserved: repeated `ensureState` / `ensureChannel` / `ensureStorEdgeControlBlock` calls issue no duplicate object creations (Req 3.5)
+    - Write/ack behavior preserved: `writeValue` / `writeStorEdgeValue` / `ackStorEdgeWrite` still write `{ val, ack: true }` to the correct ids (Req 3.4)
+  - Property-based testing (fast-check) generates many cases for stronger guarantees across the def domain
+  - Run tests on UNFIXED code: `npm run test:ts`
+  - **EXPECTED OUTCOME**: Preservation tests PASS (this confirms the baseline behavior to preserve) — note the "no stray `common.states`" property currently passes because no state yet carries `common.states`
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 3. Fix for invalid/incompatible state roles (13 states) + `common.states` enhancement (4 selectors)
+
+  - [x] 3.1 Correct the role lookup tables in `src/lib/state-manager.ts`
+    - Change 1 — `STOREDGE_CONTROL_ROLE_MAP`: set the nine writable-control role values (map stays total over the nine register names):
+      - `remoteControlChargeLimit: 'level'` (was `value.power`)
+      - `remoteControlDischargeLimit: 'level'` (was `value.power`)
+      - `remoteControlCommandTimeout: 'level.timer'` (was `value.interval`)
+      - `storageAcChargeLimit: 'level'` (was `value.energy`)
+      - `storageBackupReservedSetting: 'level.fill'` (was `value.fill`)
+      - `remoteControlCommandMode: 'level'` (was `level.mode`)
+      - `storageAcChargePolicy: 'level'` (was `level.mode`)
+      - `storageChargeDischargeDefaultMode: 'level'` (was `level.mode`)
+      - `storageControlMode: 'level'` (was `level.mode`)
+    - Change 2 — `ROLE_MAP`: set `status: 'value'` (was `'indicator'`); this one edit corrects all four numeric E1009 status states
+    - Do NOT change any values, units, ranges, read/write flags, object counts, or ack behavior for the role fix; do NOT edit `sunspec-map.ts`
+    - _Bug_Condition: isBugCondition(input) where input.write=true AND roleRequiresReadOnly(input.role) (E1011), OR NOT roleExistsInCatalogue(input.role) (E1008), OR NOT roleSupportsType(input.role, input.type) (E1009)_
+    - _Expected_Behavior: expectedBehavior from design Property 1 — StorEdge setpoints/selectors -> `level`, timeout -> `level.timer`, backup reserve -> `level.fill`, numeric status -> `value`_
+    - _Preservation: Preservation Requirements from design (Req 3.1–3.6)_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13_
+
+  - [x] 3.2 Add the `common.states` enumeration to the four mode selectors (enhancement)
+    - Change 3 — `src/lib/storedge-control-map.ts`: add an optional field to `StorEdgeControlRegisterDef`:
+      - `states?: Record<number, string>` (documented as: optional `common.states` enumeration for mode-selector registers, keyed by numeric value)
+    - Populate `states` on exactly the four mode-selector register defs (the other five register defs leave `states` undefined):
+      - `STORAGE_CONTROL_MODE` (0xE004, range 0..4): `{ 0: 'Disabled', 1: 'Maximize Self Consumption', 2: 'Time of Use', 3: 'Backup Only', 4: 'Remote Control' }`
+      - `STORAGE_AC_CHARGE_POLICY` (0xE005, range 0..3): `{ 0: 'Disable', 1: 'Always Allowed', 2: 'Fixed Energy Limit', 3: 'Percent of Production' }`
+      - `STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE` (0xE00A, range 0..7): `{ 0: 'Off', 1: 'Charge Excess PV Power Only', 2: 'Charge from PV First', 3: 'Charge from PV + AC', 4: 'Maximize Export', 5: 'Discharge to Meet Consumption', 7: 'Maximize Self Consumption' }` (value 6 intentionally absent — not defined by the protocol; sparse map)
+      - `REMOTE_CONTROL_COMMAND_MODE` (0xE00D, range 0..7): same map as `STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE` `{ 0: 'Off', 1: 'Charge Excess PV Power Only', 2: 'Charge from PV First', 3: 'Charge from PV + AC', 4: 'Maximize Export', 5: 'Discharge to Meet Consumption', 7: 'Maximize Self Consumption' }` (value 6 intentionally absent — not defined by the protocol; sparse map)
+    - Change 4 — `src/lib/state-manager.ts` `ensureStorEdgeControlBlock`: set `common.states` from `def.states` when present, mirroring the existing conditional `common.unit` assignment:
+      - `if (def.states !== undefined) { common.states = def.states; }`
+    - This is the only behavioral edit to `ensureStorEdgeControlBlock`; the `level` role, idempotency, object count (95), `write=true`/`read=true`/`min`/`max`/`unit`, and ack behavior are unchanged. `common.states` is a standard attribute and is valid on a `level` role (Req 3.2, 3.6)
+    - Do NOT alter the register type/unit/range data in `storedge-control-map.ts`; the `states` field is purely additive visualization metadata
+    - _Bug_Condition: N/A — enhancement co-located with the E1008 selector fix, does not change bug-triggering behavior_
+    - _Expected_Behavior: the four mode selectors gain `common.states` with the documented enumeration maps; `level` remains the catalogue-valid role_
+    - _Preservation: Preservation Requirements from design (Req 3.2, 3.6) — additive on exactly four states, nowhere else_
+    - _Requirements: 2.6, 2.7, 2.8, 2.9, 3.2, 3.6_
+
+  - [x] 3.3 Update unit tests to match the corrected roles and the enumeration
+    - In `src/lib/state-manager.test.ts`, update the `EXPECTED_ROLE` StorEdge table so the nine controls map to `level` / `level.timer` / `level.fill` per the design
+    - Update the `status -> role` assertion in the "maps role -> ioBroker common.role" test from `'indicator'` to `'value'` (and cover `statusVendor` / `battery.1.status` / `battery.1.statusInternal` mapping to `'value'`)
+    - Keep the existing assertions that each StorEdge control retains `write = true`, `read = true`, `type = number`, `min`, `max`, `unit` (preservation)
+    - Enhancement assertions — assert the four mode selectors carry the exact expected `common.states` maps (correct keys `0..range` and label strings) documented in task 3.2:
+      - `storageControlMode` -> the 0..4 map above
+      - `storageAcChargePolicy` -> the 0..3 map above
+      - `storageChargeDischargeDefaultMode` -> the 0..7 map above
+      - `remoteControlCommandMode` -> the 0..7 map above
+    - Assert that the other five StorEdge controls (`remoteControlChargeLimit`, `remoteControlDischargeLimit`, `remoteControlCommandTimeout`, `storageAcChargeLimit`, `storageBackupReservedSetting`) and every status state have `common.states === undefined` (no stray enumeration)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 3.2, 3.3, 3.6_
+
+  - [x] 3.4 Rebuild from `src/` to `build/`
+    - Run the project build so the compiled output reflects the corrected roles and the new `common.states`: `npm run build:ts`
+    - _Requirements: 3.6_
+
+  - [x] 3.5 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Corrected states use catalogue-valid, compatible roles
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - Run: `npm run test:ts`
+    - **EXPECTED OUTCOME**: Test PASSES (confirms the 13 roles are now catalogue-valid and type/write compatible)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13_
+
+  - [x] 3.6 Verify preservation tests still pass
+    - **Property 2: Preservation** - Non-buggy states unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run: `npm run test:ts`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions to measurement/info roles, non-role attributes, idempotency, write/ack behavior, and that `common.states` was added to exactly the four selectors — the "no stray `common.states`" property still holds for the other five controls and all status states)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run the full suite: `npm test`
+  - Confirm the build is up to date (`npm run build:ts`) and no E1011/E1008/E1009 roles remain in the generated objects, exactly 95 objects are produced, and the four mode selectors carry `common.states` while no other state does
+  - Confirm `common.states` is accepted on the `level` role (standard attribute, does not invalidate the role) per Req 3.2 / 3.6
+  - Ensure all tests pass, ask the user if questions arise
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_

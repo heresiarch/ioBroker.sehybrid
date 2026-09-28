@@ -370,8 +370,12 @@ describe('sunspec-decode', () => {
         it('Feature: storedge-battery-control, Property 5: uint32le encoding round-trips against the existing decoder', () => {
             // For any unsigned 32-bit integer v, encoding it with encodeUint32le and
             // decoding via the existing 'uint32le' decoder reproduces v exactly.
+            // 0xFFFFFFFF (4294967295) is the SunSpec NOT_IMPLEMENTED sentinel for
+            // uint32/uint32le, so the decoder returns null by design and a round-trip
+            // to the original value is not expected for the sentinel; the property
+            // holds for every non-sentinel value, so we exclude 0xFFFFFFFF here.
             fc.assert(
-                fc.property(fc.integer({ min: 0, max: 0xffffffff }), v => {
+                fc.property(fc.integer({ min: 0, max: 0xffffffff - 1 }), v => {
                     const value = v >>> 0;
                     expect(decodeRegisters(encodeUint32le(value), 'uint32le')).to.equal(value);
                 }),

@@ -17,7 +17,14 @@ import type { ChannelPath, IStateManager, StateManagerAdapter } from './state-ma
 import { StateManager } from './state-manager';
 import { STOREDGE_CONTROL_REGISTERS } from './storedge-control-map';
 import type { SunSpecRegisterDef } from './sunspec-map';
-import { getBatteryValueDefs, getInverterValueDefs, getMeterValueDefs, getValueDefs } from './sunspec-map';
+import {
+    BATTERY_MAP,
+    SUNSPEC_MAP,
+    getBatteryValueDefs,
+    getInverterValueDefs,
+    getMeterValueDefs,
+    getValueDefs,
+} from './sunspec-map';
 
 // ---------------------------------------------------------------------------
 // Mock adapter
@@ -246,9 +253,30 @@ describe('state-manager => StateManager', () => {
                 'value.energy',
             );
 
-            // status -> indicator
+            // status -> value (numeric read-only status; 'indicator' is boolean-only, E1009)
             await manager.ensureState('inverter', defByName('status'));
-            expect((adapter.objects.get('inverter.status')!.common as ioBroker.StateCommon).role).to.equal('indicator');
+            expect((adapter.objects.get('inverter.status')!.common as ioBroker.StateCommon).role).to.equal('value');
+        });
+
+        it('maps status states (inverter + battery) to role value, not indicator', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            await manager.ensureState('inverter', getInverterValueDefs().find(d => d.name === 'status')!);
+            await manager.ensureState('inverter', getInverterValueDefs().find(d => d.name === 'statusVendor')!);
+            await manager.ensureState('battery.1', getBatteryValueDefs().find(d => d.name === 'status')!);
+            await manager.ensureState('battery.1', getBatteryValueDefs().find(d => d.name === 'statusInternal')!);
+
+            for (const id of [
+                'inverter.status',
+                'inverter.statusVendor',
+                'battery.1.status',
+                'battery.1.statusInternal',
+            ]) {
+                const common = adapter.objects.get(id)!.common as ioBroker.StateCommon;
+                expect(common.type, `${id} type`).to.equal('number');
+                expect(common.role, `${id} role`).to.equal('value');
+            }
         });
 
         it("omits the 'unit' key entirely when the def declares no unit (status)", async () => {
@@ -429,17 +457,56 @@ describe('state-manager => StateManager', () => {
     // --------------------------------------------------------------------
 
     describe('ensureStorEdgeControlBlock', () => {
-        /** Expected common.role per StorEdgeControlBlock register name (design section 3). */
+        /** Expected common.role per StorEdgeControlBlock register name (corrected catalogue-valid roles). */
         const EXPECTED_ROLE: Record<string, string> = {
-            storageControlMode: 'level.mode',
-            storageAcChargePolicy: 'level.mode',
-            storageAcChargeLimit: 'value.energy',
-            storageBackupReservedSetting: 'value.fill',
-            storageChargeDischargeDefaultMode: 'level.mode',
-            remoteControlCommandTimeout: 'value.interval',
-            remoteControlCommandMode: 'level.mode',
-            remoteControlChargeLimit: 'value.power',
-            remoteControlDischargeLimit: 'value.power',
+            storageControlMode: 'level',
+            storageAcChargePolicy: 'level',
+            storageAcChargeLimit: 'level',
+            storageBackupReservedSetting: 'level.fill',
+            storageChargeDischargeDefaultMode: 'level',
+            remoteControlCommandTimeout: 'level.timer',
+            remoteControlCommandMode: 'level',
+            remoteControlChargeLimit: 'level',
+            remoteControlDischargeLimit: 'level',
+        };
+
+        /**
+         * Expected additive `common.states` enumeration per mode-selector register.
+         * Only these four selectors carry an enumeration; the other five controls
+         * leave `common.states` undefined. Runtime object keys are strings.
+         */
+        const EXPECTED_STATES: Record<string, Record<number, string>> = {
+            storageControlMode: {
+                0: 'Disabled',
+                1: 'Maximize Self Consumption',
+                2: 'Time of Use',
+                3: 'Backup Only',
+                4: 'Remote Control',
+            },
+            storageAcChargePolicy: {
+                0: 'Disable',
+                1: 'Always Allowed',
+                2: 'Fixed Energy Limit',
+                3: 'Percent of Production',
+            },
+            storageChargeDischargeDefaultMode: {
+                0: 'Off',
+                1: 'Charge Excess PV Power Only',
+                2: 'Charge from PV First',
+                3: 'Charge from PV + AC',
+                4: 'Maximize Export',
+                5: 'Discharge to Meet Consumption',
+                7: 'Maximize Self Consumption',
+            },
+            remoteControlCommandMode: {
+                0: 'Off',
+                1: 'Charge Excess PV Power Only',
+                2: 'Charge from PV First',
+                3: 'Charge from PV + AC',
+                4: 'Maximize Export',
+                5: 'Discharge to Meet Consumption',
+                7: 'Maximize Self Consumption',
+            },
         };
 
         /** The exact nine StorEdgeControlBlock ids. */
@@ -486,6 +553,27 @@ describe('state-manager => StateManager', () => {
                     expect(common, `${def.name} should have unit`).to.have.property('unit', def.unit);
                 } else {
                     expect(common, `${def.name} should not have unit`).to.not.have.property('unit');
+                }
+            }
+        });
+
+        it('adds common.states enumeration to exactly the four mode selectors (and nowhere else)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const common = storEdgeCommon(adapter, `StorEdgeControlBlock.${def.name}`);
+                const expectedStates = EXPECTED_STATES[def.name];
+                if (expectedStates !== undefined) {
+                    // Runtime object keys are strings; build the string-keyed expectation.
+                    const expectedRuntime: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(expectedStates)) {
+                        expectedRuntime[k] = v;
+                    }
+                    expect(common.states, `${def.name} common.states`).to.deep.equal(expectedRuntime);
+                } else {
+                    expect(common, `${def.name} should not have common.states`).to.not.have.property('states');
                 }
             }
         });
@@ -599,6 +687,455 @@ describe('state-manager => StateManager', () => {
                 const common = adapter.objects.get(id)!.common as ioBroker.StateCommon;
                 expect(common.write, `${id} write`).to.equal(true);
             }
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // state-role-validation-fixes — Task 1
+    // Property 1: Bug Condition — corrected states use catalogue-valid,
+    // compatible roles.
+    //
+    // These assertions encode the EXPECTED (post-fix) roles from design
+    // Property 1 / Fix Implementation. On the UNFIXED code they MUST FAIL —
+    // that failure is the codified counterexample that proves the 13 states
+    // carry invalid/incompatible roles (E1011 / E1008 / E1009).
+    //
+    // Scoped deterministically to the 13 concrete triggering states (the nine
+    // STOREDGE_CONTROL_REGISTERS + inverter.status, inverter.statusVendor,
+    // battery.1.status, battery.1.statusInternal) rather than random inputs.
+    //
+    // Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9,
+    // 2.10, 2.11, 2.12, 2.13
+    // --------------------------------------------------------------------
+
+    describe('Bug condition (Property 1): corrected states use catalogue-valid, compatible roles', () => {
+        /** Expected (post-fix) common.role for the four numeric status states (E1009 -> value). */
+        const EXPECTED_STATUS_ROLE = 'value';
+
+        /**
+         * Expected (post-fix) common.role per StorEdgeControlBlock register name
+         * (E1011 / E1008 corrected to catalogue Levels-family roles per design Property 1).
+         */
+        const EXPECTED_STOREDGE_ROLE: Record<string, string> = {
+            remoteControlChargeLimit: 'level', // was 'value.power' (E1011)
+            remoteControlDischargeLimit: 'level', // was 'value.power' (E1011)
+            remoteControlCommandTimeout: 'level.timer', // was 'value.interval' (E1011)
+            storageAcChargeLimit: 'level', // was 'value.energy' (E1011)
+            storageBackupReservedSetting: 'level.fill', // was 'value.fill' (E1011)
+            remoteControlCommandMode: 'level', // was 'level.mode' (E1008)
+            storageAcChargePolicy: 'level', // was 'level.mode' (E1008)
+            storageChargeDischargeDefaultMode: 'level', // was 'level.mode' (E1008)
+            storageControlMode: 'level', // was 'level.mode' (E1008)
+        };
+
+        /**
+         * Resolve the created state common for an id, asserting the object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        it('inverter.status / inverter.statusVendor use role value (numeric read-only), not indicator (E1009)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            const statusDef = getInverterValueDefs().find(d => d.name === 'status')!;
+            const statusVendorDef = getInverterValueDefs().find(d => d.name === 'statusVendor')!;
+
+            await manager.ensureState('inverter', statusDef);
+            await manager.ensureState('inverter', statusVendorDef);
+
+            const status = commonFor(adapter, 'inverter.status');
+            const statusVendor = commonFor(adapter, 'inverter.statusVendor');
+
+            // type is number, so indicator (boolean-only) is a catalogue violation.
+            expect(status.type, 'inverter.status type').to.equal('number');
+            expect(statusVendor.type, 'inverter.statusVendor type').to.equal('number');
+
+            expect(status.role, 'inverter.status role').to.equal(EXPECTED_STATUS_ROLE);
+            expect(statusVendor.role, 'inverter.statusVendor role').to.equal(EXPECTED_STATUS_ROLE);
+        });
+
+        it('battery.1.status / battery.1.statusInternal use role value (numeric read-only), not indicator (E1009)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            const statusDef = getBatteryValueDefs().find(d => d.name === 'status')!;
+            const statusInternalDef = getBatteryValueDefs().find(d => d.name === 'statusInternal')!;
+
+            await manager.ensureState('battery.1', statusDef);
+            await manager.ensureState('battery.1', statusInternalDef);
+
+            const status = commonFor(adapter, 'battery.1.status');
+            const statusInternal = commonFor(adapter, 'battery.1.statusInternal');
+
+            expect(status.type, 'battery.1.status type').to.equal('number');
+            expect(statusInternal.type, 'battery.1.statusInternal type').to.equal('number');
+
+            expect(status.role, 'battery.1.status role').to.equal(EXPECTED_STATUS_ROLE);
+            expect(statusInternal.role, 'battery.1.statusInternal role').to.equal(EXPECTED_STATUS_ROLE);
+        });
+
+        it('the nine writable StorEdgeControlBlock controls use catalogue Levels-family roles (E1011 + E1008)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const common = commonFor(adapter, `StorEdgeControlBlock.${def.name}`);
+                // These are the adapter's only write=true states; a value.* role here is E1011.
+                expect(common.write, `${def.name} write`).to.equal(true);
+                expect(common.role, `${def.name} role`).to.equal(EXPECTED_STOREDGE_ROLE[def.name]);
+            }
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // state-role-validation-fixes — Task 2
+    // Property 2: Preservation — non-buggy states are created identically by
+    // the fixed adapter.
+    //
+    // OBSERVATION-FIRST: every assertion below encodes behavior observed on the
+    // CURRENT UNFIXED code, so they MUST PASS now and must continue to hold
+    // after the role fix + additive `common.states` enhancement. They lock in
+    // everything the fix must NOT disturb: measurement/info roles, StorEdge and
+    // status non-role attributes (type/read/write/min/max/unit), the absence of
+    // stray `common.states`, idempotency, and acknowledged-write behavior.
+    //
+    // Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
+    // --------------------------------------------------------------------
+
+    describe('Preservation (Property 2): non-buggy states unchanged', () => {
+        /**
+         * The four E1008 mode selectors that WILL receive an additive `common.states`
+         * enumeration by the fix. Every OTHER control/state must never gain one, so
+         * the "no stray common.states" assertions exclude exactly these four.
+         */
+        const MODE_SELECTOR_NAMES: ReadonlySet<string> = new Set([
+            'storageControlMode',
+            'storageAcChargePolicy',
+            'storageChargeDischargeDefaultMode',
+            'remoteControlCommandMode',
+        ]);
+
+        /**
+         * Baseline measurement-role mappings observed on the UNFIXED code. Every
+         * non-status, non-info SunSpec logical role maps to exactly this
+         * `common.role`, and the fix must not touch any of them (Req 3.1).
+         */
+        const EXPECTED_MEASUREMENT_ROLE: Record<string, string> = {
+            current: 'value.current',
+            voltage: 'value.voltage',
+            power: 'value.power.active',
+            'power.apparent': 'value.power',
+            'power.reactive': 'value.power',
+            powerFactor: 'value',
+            frequency: 'value.frequency',
+            energy: 'value.energy',
+            temperature: 'value.temperature',
+            percent: 'value.fill',
+        };
+
+        /**
+         * Resolve the created state common for an id, asserting the object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        /** Every SunSpec value def paired with the channel it is created under. */
+        const sunspecCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+            ...allValueDefs.map(def => ({ channel: channelForDef(def), def })),
+            ...allBatteryValueDefs.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
+        ];
+
+        // ----------------------------------------------------------------
+        // Req 3.1 — measurement roles preserved (value.* mapping unchanged)
+        // ----------------------------------------------------------------
+        it('preserves the value.* role of every non-status, non-info measurement def (Req 3.1)', async () => {
+            const measurementCases = sunspecCases.filter(c => c.def.role !== 'status' && c.def.role !== 'info');
+            // Sanity: representative mappings are actually exercised.
+            expect(measurementCases.some(c => c.def.name === 'acPower')).to.equal(true);
+            expect(measurementCases.some(c => c.def.name === 'acCurrent')).to.equal(true);
+            expect(measurementCases.some(c => c.def.name === 'acEnergyWh')).to.equal(true);
+
+            for (const { channel, def } of measurementCases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                const expected = EXPECTED_MEASUREMENT_ROLE[def.role];
+                expect(expected, `role mapping known for ${def.role}`).to.not.equal(undefined);
+                expect(common.role, `${def.name} (${def.role}) role`).to.equal(expected);
+            }
+        });
+
+        it('preserves the specific representative mappings acPower/acCurrent/acEnergyWh (Req 3.1)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            const byName = (name: string): SunSpecRegisterDef => {
+                const def = allValueDefs.find(d => d.name === name);
+                expect(def, `value def ${name}`).to.not.equal(undefined);
+                return def!;
+            };
+
+            await manager.ensureState('inverter', byName('acPower'));
+            await manager.ensureState('inverter', byName('acCurrent'));
+            await manager.ensureState('inverter', byName('acEnergyWh'));
+
+            expect(commonFor(adapter, 'inverter.acPower').role).to.equal('value.power.active');
+            expect(commonFor(adapter, 'inverter.acCurrent').role).to.equal('value.current');
+            expect(commonFor(adapter, 'inverter.acEnergyWh').role).to.equal('value.energy');
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.1 — info/scale-factor/identity roles preserved (plain value)
+        // ----------------------------------------------------------------
+        it('preserves the plain value role of every info/scale-factor/identity def (Req 3.1)', async () => {
+            // Info defs are filtered out of getValueDefs()/getBatteryValueDefs(), so
+            // pull them straight from the raw maps.
+            const infoCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+                ...SUNSPEC_MAP.filter(d => d.role === 'info' && d.model !== 'common').map(def => ({
+                    channel: channelForDef(def),
+                    def,
+                })),
+                ...BATTERY_MAP.filter(d => d.role === 'info').map(def => ({
+                    channel: 'battery.1' as ChannelPath,
+                    def,
+                })),
+            ];
+            expect(infoCases.length, 'at least one info def exercised').to.be.greaterThan(0);
+
+            for (const { channel, def } of infoCases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.role, `${def.name} (info) role`).to.equal('value');
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.2 — StorEdge non-role attributes preserved
+        // ----------------------------------------------------------------
+        it('preserves write=true, read=true, type=number and exact min/max/unit for all nine StorEdge controls (Req 3.2)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const common = commonFor(adapter, `StorEdgeControlBlock.${def.name}`);
+                expect(common.type, `${def.name} type`).to.equal('number');
+                expect(common.read, `${def.name} read`).to.equal(true);
+                expect(common.write, `${def.name} write`).to.equal(true);
+                expect(common.min, `${def.name} min`).to.equal(def.min);
+                expect(common.max, `${def.name} max`).to.equal(def.max);
+                if (def.unit !== undefined) {
+                    expect(common, `${def.name} should have unit`).to.have.property('unit', def.unit);
+                } else {
+                    expect(common, `${def.name} should not have unit`).to.not.have.property('unit');
+                }
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.3 — status non-role attributes preserved
+        // ----------------------------------------------------------------
+        it('preserves type=number, read=true, write=false for the four corrected status states (Req 3.3)', async () => {
+            const cases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+                { channel: 'inverter', def: getInverterValueDefs().find(d => d.name === 'status')! },
+                { channel: 'inverter', def: getInverterValueDefs().find(d => d.name === 'statusVendor')! },
+                { channel: 'battery.1', def: getBatteryValueDefs().find(d => d.name === 'status')! },
+                { channel: 'battery.1', def: getBatteryValueDefs().find(d => d.name === 'statusInternal')! },
+            ];
+
+            for (const { channel, def } of cases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.type, `${channel}.${def.name} type`).to.equal('number');
+                expect(common.read, `${channel}.${def.name} read`).to.equal(true);
+                expect(common.write, `${channel}.${def.name} write`).to.equal(false);
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.2, 3.6 — no stray common.states
+        //
+        // On the UNFIXED code NO state carries common.states, so this passes
+        // everywhere. After the fix it must still hold for every state EXCEPT the
+        // four mode selectors (which gain the additive enumeration), proving the
+        // enhancement adds the attribute nowhere else.
+        // ----------------------------------------------------------------
+        it('has no common.states on the five non-selector StorEdge controls (Req 3.2, 3.6)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                if (MODE_SELECTOR_NAMES.has(def.name)) {
+                    continue;
+                }
+                const common = commonFor(adapter, `StorEdgeControlBlock.${def.name}`);
+                expect(common, `${def.name} should not have common.states`).to.not.have.property('states');
+            }
+        });
+
+        it('has no common.states on any status/measurement/info state (Req 3.2, 3.6)', async () => {
+            const infoCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+                ...SUNSPEC_MAP.filter(d => d.model !== 'common').map(def => ({ channel: channelForDef(def), def })),
+                ...BATTERY_MAP.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
+            ];
+
+            for (const { channel, def } of infoCases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common, `${channel}.${def.name} should not have common.states`).to.not.have.property('states');
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.2, 3.6 — additive nature: object count and per-state
+        // type/read/write/min/max/unit are stable; ack behavior unaffected.
+        //
+        // Observed here on the UNFIXED code as the full baseline object dump
+        // (channels + states) that the fix must preserve unchanged except for the
+        // 13 role strings and the four additive common.states maps.
+        // ----------------------------------------------------------------
+        it('produces a stable full object dump (count + attributes) that the fix must preserve (Req 3.2, 3.6)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+
+            // Full dump: all channels + all SunSpec/battery states + StorEdge block.
+            await manager.ensureChannel('inverter');
+            await manager.ensureChannel('meter.1');
+            await manager.ensureChannel('battery.1');
+            for (const def of allValueDefs) {
+                await manager.ensureState(channelForDef(def), def);
+            }
+            for (const def of allBatteryValueDefs) {
+                await manager.ensureState('battery.1', def);
+            }
+            await manager.ensureStorEdgeControlBlock();
+
+            // Snapshot the per-state non-role attributes as the baseline to preserve.
+            const stateObjects = [...adapter.objects.entries()].filter(([, obj]) => obj.type === 'state');
+            expect(stateObjects.length, 'at least the StorEdge + SunSpec states exist').to.be.greaterThan(0);
+
+            for (const [id, obj] of stateObjects) {
+                const common = obj.common as ioBroker.StateCommon;
+                expect(common.type, `${id} type`).to.be.oneOf(['number', 'string']);
+                expect(common.read, `${id} read`).to.equal(true);
+                // Only the nine StorEdge controls are write=true; everything else write=false.
+                if (id.startsWith('StorEdgeControlBlock.')) {
+                    expect(common.write, `${id} write`).to.equal(true);
+                } else {
+                    expect(common.write, `${id} write`).to.equal(false);
+                }
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.5 — idempotency preserved across ensure* calls
+        // ----------------------------------------------------------------
+        it('keeps ensureState / ensureChannel / ensureStorEdgeControlBlock idempotent (Req 3.5)', async () => {
+            const repeatArb = fc.integer({ min: 1, max: 8 });
+            const defArb = fc.constantFrom(...allValueDefs);
+
+            await fc.assert(
+                fc.asyncProperty(defArb, repeatArb, async (def, n) => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+                    const channel = channelForDef(def);
+                    const stateId = `${channel}.${def.name}`;
+
+                    for (let i = 0; i < n; i++) {
+                        await manager.ensureChannel(channel);
+                        await manager.ensureState(channel, def);
+                        await manager.ensureStorEdgeControlBlock();
+                    }
+
+                    // Each id created exactly once, with no repeat-create attempts.
+                    expect(adapter.createCalls.get(channel) ?? 0, `${channel} createCalls`).to.equal(1);
+                    expect(adapter.createCalls.get(stateId) ?? 0, `${stateId} createCalls`).to.equal(1);
+                    expect(adapter.createAttempts.get(stateId) ?? 0, `${stateId} createAttempts`).to.equal(0);
+
+                    for (const sedef of STOREDGE_CONTROL_REGISTERS) {
+                        const id = `StorEdgeControlBlock.${sedef.name}`;
+                        expect(adapter.createCalls.get(id) ?? 0, `${id} createCalls`).to.equal(1);
+                        expect(adapter.createAttempts.get(id) ?? 0, `${id} createAttempts`).to.equal(0);
+                    }
+                }),
+                { numRuns: 100 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.4 — write/ack behavior preserved
+        // ----------------------------------------------------------------
+        it('writeValue writes { val, ack: true } to the SunSpec id (Req 3.4)', async () => {
+            const defArb = fc.constantFrom(...allValueDefs);
+            const valueArb = fc.double({ noNaN: true });
+
+            await fc.assert(
+                fc.asyncProperty(defArb, valueArb, async (def, value) => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+                    const channel = channelForDef(def);
+                    const id = `${channel}.${def.name}`;
+
+                    await manager.writeValue(channel, def, value);
+
+                    const writes = adapter.writesFor(id);
+                    expect(writes.length).to.equal(1);
+                    expect(writes[0].val).to.equal(value);
+                    expect(writes[0].ack).to.equal(true);
+                }),
+                { numRuns: 100 },
+            );
+        });
+
+        it('writeStorEdgeValue / ackStorEdgeWrite write { val, ack: true } to the StorEdgeControlBlock id (Req 3.4)', async () => {
+            const defArb = fc.constantFrom(...STOREDGE_CONTROL_REGISTERS);
+            const valueArb = fc.double({ noNaN: true });
+
+            await fc.assert(
+                fc.asyncProperty(defArb, valueArb, async (def, value) => {
+                    const writeAdapter = new MockAdapter();
+                    const writeManager: IStateManager = new StateManager(writeAdapter);
+                    const id = `StorEdgeControlBlock.${def.name}`;
+
+                    await writeManager.writeStorEdgeValue(def, value);
+                    const w1 = writeAdapter.writesFor(id);
+                    expect(w1.length).to.equal(1);
+                    expect(w1[0].val).to.equal(value);
+                    expect(w1[0].ack).to.equal(true);
+
+                    const ackAdapter = new MockAdapter();
+                    const ackManager: IStateManager = new StateManager(ackAdapter);
+                    await ackManager.ackStorEdgeWrite(def, value);
+                    const w2 = ackAdapter.writesFor(id);
+                    expect(w2.length).to.equal(1);
+                    expect(w2[0].val).to.equal(value);
+                    expect(w2[0].ack).to.equal(true);
+                }),
+                { numRuns: 100 },
+            );
         });
     });
 });

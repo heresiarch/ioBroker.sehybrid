@@ -104,8 +104,10 @@ function channelDisplayName(channel: ChannelPath): string {
  * Map a logical SunSpec role to a valid ioBroker `common.role` string (Req 6.4).
  *
  * Every {@link SunSpecRole} has an entry so the mapping is total. The chosen roles
- * are standard ioBroker state roles (`value.*` for measurements, `indicator` for
- * status flags, plain `value` for unitless/dimensionless quantities).
+ * are standard ioBroker state roles (`value.*` for measurements, plain `value` for
+ * numeric status codes and unitless/dimensionless quantities). `status` maps to
+ * `value` (not `indicator`, which is boolean-only) because every `role: 'status'`
+ * def is `iobType: 'number'` (E1009 fix, Req 2.10–2.13).
  */
 const ROLE_MAP: Record<SunSpecRole, string> = {
     current: 'value.current',
@@ -118,7 +120,7 @@ const ROLE_MAP: Record<SunSpecRole, string> = {
     energy: 'value.energy',
     temperature: 'value.temperature',
     percent: 'value.fill',
-    status: 'indicator',
+    status: 'value',
     info: 'value',
 };
 
@@ -127,19 +129,25 @@ const STOREDGE_CONTROL_CHANNEL = 'StorEdgeControlBlock';
 
 /**
  * Map a StorEdgeControlBlock register's `name` to its ioBroker `common.role`
- * (Req 9.1, design section 3). Every one of the nine registers has an entry so the
- * mapping is total.
+ * (Req 9.1). Every one of the nine registers has an entry so the mapping is total.
+ *
+ * All nine are writable (`write = true`) controls, so each uses a catalogue-valid
+ * read-write Levels-family role: the generic `level` for numeric setpoints and mode
+ * selectors, `level.timer` for the command timeout (duration in seconds), and
+ * `level.fill` for the backup-reserve percentage. Read-only `value.*` roles are not
+ * allowed on writable states (E1011) and `level.mode` is not a catalogue role
+ * (E1008); see Req 2.1–2.9.
  */
 const STOREDGE_CONTROL_ROLE_MAP: Record<string, string> = {
-    storageControlMode: 'level.mode',
-    storageAcChargePolicy: 'level.mode',
-    storageAcChargeLimit: 'value.energy',
-    storageBackupReservedSetting: 'value.fill',
-    storageChargeDischargeDefaultMode: 'level.mode',
-    remoteControlCommandTimeout: 'value.interval',
-    remoteControlCommandMode: 'level.mode',
-    remoteControlChargeLimit: 'value.power',
-    remoteControlDischargeLimit: 'value.power',
+    storageControlMode: 'level',
+    storageAcChargePolicy: 'level',
+    storageAcChargeLimit: 'level',
+    storageBackupReservedSetting: 'level.fill',
+    storageChargeDischargeDefaultMode: 'level',
+    remoteControlCommandTimeout: 'level.timer',
+    remoteControlCommandMode: 'level',
+    remoteControlChargeLimit: 'level',
+    remoteControlDischargeLimit: 'level',
 };
 
 /**
@@ -277,6 +285,9 @@ export class StateManager implements IStateManager {
             };
             if (def.unit !== undefined) {
                 common.unit = def.unit;
+            }
+            if (def.states !== undefined) {
+                common.states = def.states;
             }
 
             await this.adapter.setObjectNotExistsAsync(id, {

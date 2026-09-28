@@ -44,20 +44,20 @@ const ROLE_MAP = {
   energy: "value.energy",
   temperature: "value.temperature",
   percent: "value.fill",
-  status: "indicator",
+  status: "value",
   info: "value"
 };
 const STOREDGE_CONTROL_CHANNEL = "StorEdgeControlBlock";
 const STOREDGE_CONTROL_ROLE_MAP = {
-  storageControlMode: "level.mode",
-  storageAcChargePolicy: "level.mode",
-  storageAcChargeLimit: "value.energy",
-  storageBackupReservedSetting: "value.fill",
-  storageChargeDischargeDefaultMode: "level.mode",
-  remoteControlCommandTimeout: "value.interval",
-  remoteControlCommandMode: "level.mode",
-  remoteControlChargeLimit: "value.power",
-  remoteControlDischargeLimit: "value.power"
+  storageControlMode: "level",
+  storageAcChargePolicy: "level",
+  storageAcChargeLimit: "level",
+  storageBackupReservedSetting: "level.fill",
+  storageChargeDischargeDefaultMode: "level",
+  remoteControlCommandTimeout: "level.timer",
+  remoteControlCommandMode: "level",
+  remoteControlChargeLimit: "level",
+  remoteControlDischargeLimit: "level"
 };
 class StateManager {
   adapter;
@@ -151,6 +151,9 @@ class StateManager {
       };
       if (def.unit !== void 0) {
         common.unit = def.unit;
+      }
+      if (def.states !== void 0) {
+        common.states = def.states;
       }
       await this.adapter.setObjectNotExistsAsync(id, {
         type: "state",

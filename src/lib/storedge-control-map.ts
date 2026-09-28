@@ -50,6 +50,15 @@ export interface StorEdgeControlRegisterDef {
     max: number;
     /** Write function code: FC06 for uint16, FC16 for the multiword registers. */
     fc: 'FC06' | 'FC16';
+    /**
+     * Optional `common.states` enumeration for mode-selector registers, keyed by
+     * numeric value. Populated only on the four mode selectors (Storage Control
+     * Mode, Storage AC Charge Policy, Storage Charge/Discharge Default Mode, and
+     * Remote Control Command Mode); left undefined on the other five registers.
+     * Numeric object keys are stored as string keys at runtime, matching the
+     * ioBroker `common.states` shape.
+     */
+    states?: Record<number, string>;
 }
 
 /** Storage Control Mode `0xE004` (uint16, 0..4). Selects the storage control mode. */
@@ -62,6 +71,15 @@ export const STORAGE_CONTROL_MODE: StorEdgeControlRegisterDef = {
     min: 0,
     max: 4,
     fc: 'FC06',
+    // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+    // (base 0xE004). Enumeration of the mode-selector values 0..4.
+    states: {
+        0: 'Disabled',
+        1: 'Maximize Self Consumption',
+        2: 'Time of Use',
+        3: 'Backup Only',
+        4: 'Remote Control',
+    },
 };
 
 /** Storage AC Charge Policy `0xE005` (uint16, 0..3). Selects the AC charge policy. */
@@ -74,6 +92,14 @@ export const STORAGE_AC_CHARGE_POLICY: StorEdgeControlRegisterDef = {
     min: 0,
     max: 3,
     fc: 'FC06',
+    // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+    // (base 0xE004). Enumeration of the AC charge policy values 0..3.
+    states: {
+        0: 'Disable',
+        1: 'Always Allowed',
+        2: 'Fixed Energy Limit',
+        3: 'Percent of Production',
+    },
 };
 
 /** Storage AC Charge Limit `0xE006` (float32, KWh or %, 0..Max_Float). */
@@ -114,6 +140,19 @@ export const STORAGE_CHARGE_DISCHARGE_DEFAULT_MODE: StorEdgeControlRegisterDef =
     min: 0,
     max: 7,
     fc: 'FC06',
+    // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+    // (base 0xE004). Enumeration of the charge/discharge mode values. Value 6 is
+    // intentionally absent — the protocol defines no mode 6, so the map is sparse
+    // (the 0..7 range is unchanged).
+    states: {
+        0: 'Off',
+        1: 'Charge Excess PV Power Only',
+        2: 'Charge from PV First',
+        3: 'Charge from PV + AC',
+        4: 'Maximize Export',
+        5: 'Discharge to Meet Consumption',
+        7: 'Maximize Self Consumption',
+    },
 };
 
 /** Remote Control Command Timeout `0xE00B` (uint32, seconds, 0..86400, uint32le, FC16). */
@@ -140,6 +179,19 @@ export const REMOTE_CONTROL_COMMAND_MODE: StorEdgeControlRegisterDef = {
     min: 0,
     max: 7,
     fc: 'FC06',
+    // Source: SolarEdge Power Control Open Protocol, Global StorEdge Control Block
+    // (base 0xE004). Same enumeration as Storage Charge/Discharge Default Mode.
+    // Value 6 is intentionally absent — the protocol defines no mode 6, so the map
+    // is sparse (the 0..7 range is unchanged).
+    states: {
+        0: 'Off',
+        1: 'Charge Excess PV Power Only',
+        2: 'Charge from PV First',
+        3: 'Charge from PV + AC',
+        4: 'Maximize Export',
+        5: 'Discharge to Meet Consumption',
+        7: 'Maximize Self Consumption',
+    },
 };
 
 /** Remote Control Charge Limit `0xE00E` (float32, W, 0..Battery_Max_Power, float32le, FC16). */
