@@ -1,4 +1,8 @@
 # Older changes
+## 1.0.10 (2026-09-25)
+* hotfix for missing static files in npm
+* hotfix for port issue
+
 ## 1.0.9 (2026-09-25)
 * fixed lint config
 * checked that responsive design is working
