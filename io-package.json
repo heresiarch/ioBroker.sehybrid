@@ -95,7 +95,6 @@
         "zh-cn": "编译后的 build/` 文件夹现在已提交到存储库，因此可以直接从 GitHub 安装适配器；删除了 common.nogit 标志和 prepublishOnly 编译挂钩\n将适配器徽标设置为方形 (512x512)，并在自述文件中缩小了其大小"
       }
     },
-    "title": "sehybrid",
     "titleLang": {
       "en": "sehybrid",
       "de": "sehybrid",
