@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "news": {
+      "1.0.13": {
+        "en": "minor fixes package.json",
+        "de": "Kleine Fixes package.json",
+        "ru": "незначительные исправления package.json",
+        "pt": "minor fix package.json",
+        "nl": "kleine aanpassingen package.json",
+        "fr": "correctifs package.json",
+        "it": "fix minori package.json",
+        "es": "pequeños arreglos package.json",
+        "pl": "drobne poprawki package.json",
+        "uk": "незначні виправлення package.json",
+        "zh-cn": "小修复 package.js"
+      },
       "1.0.12": {
         "en": "minor fixes",
         "de": "Kleine Fixes",
@@ -80,19 +93,6 @@
         "pl": "Oczekujące zmiany w następnej wersji",
         "uk": "Очікуються зміни для наступного випуску",
         "zh-cn": "等待下一个版本的更改"
-      },
-      "1.0.6": {
-        "en": "The compiled `build/` folder is now committed to the repository so the adapter can be installed directly from GitHub; dropped the `common.nogit` flag and the `prepublishOnly` build hook\nMade the adapter logo square (512x512) and reduced its size in the README",
-        "de": "Der kompilierte Ordner `build/` ist nun im Projektarchiv gespeichert, sodass der Adapter direkt von GitHub installiert werden kann; Flag `common.nogit` und `prepublishOnly`\nQuadratisches Adapter-Logo (512x512) und verkleinert in der README",
-        "ru": "Скомпилированная папка `build/` теперь сохранена в репозитории, поэтому адаптер можно установить непосредственно из GitHub; сброшены флаг `common.nogit` и хук сборки `PrePublishOnly`\nСделал логотип адаптера квадратным (512x512) и уменьшил его размер в README",
-        "pt": "A pasta compilada `build/` agora está no repositório para instalar o adaptador diretamente do GitHub; removeu a bandeira `common.nogit` e o build hook `prepublishOnly`\nQuadrou o logotipo do adaptador (512x512) e reduziu o tamanho no README",
-        "nl": "De gecompileerde map `build/` is nu toegewezen aan de repository, zodat de adapter rechtstreeks vanaf GitHub kan worden geïnstalleerd; de vlag `common.nogit` en de `PrePublishOnly` buildhaak zijn verwijderd\nHet adapterlogo vierkant gemaakt (512 x 512) en het formaat ervan verkleind in de README",
-        "fr": "Le dossier build/compilé est maintenant enregistré dans le dépôt afin que l'adaptateur puisse être installé directement depuis GitHub. L'indicateur common.nogit et le hook de build PrepublishOnly ont été supprimés\nLogo de l'adaptateur carré (512 x 512) et réduit sa taille dans le README",
-        "it": "La cartella `build/` compilata è ora salvata nel repository, quindi l'adattatore può essere installato direttamente da GitHub; ha eliminato il flag common.nogit e il build hook PrepublishOnly\nHa quadrato il logo dell'adattatore (512x512) nel README",
-        "es": "La carpeta `build/` compilada ahora está guardada en el repositorio para que el adaptador se pueda instalar directamente desde GitHub; ha quitado el indicador `common.nogit` y el gancho de compilación `PrePublishOnly`\nCuadró el logotipo del adaptador (512 x 512) y redujo su tamaño en el README",
-        "pl": "Skompilowany folder `build/` jest teraz przekazany do repozytorium, więc adapter można zainstalować bezpośrednio z GitHub; upuszczono flagę `common.nogit` i haczyk kompilacji `PrePublishOnly`\nWykonało kwadratowe logo adaptera (512x512) i zmniejszyło jego rozmiar w README",
-        "uk": "Скомпільована тека `build/` тепер підключена до сховища, тому адаптер можна встановити безпосередньо з GitHub; скинуто прапор `common.nogit` та хук збірки `PrePublishOnly`\nЗробив логотип адаптера квадратним (512х512) і зменшив його розмір в README",
-        "zh-cn": "编译后的 build/` 文件夹现在已提交到存储库，因此可以直接从 GitHub 安装适配器；删除了 common.nogit 标志和 prepublishOnly 编译挂钩\n将适配器徽标设置为方形 (512x512)，并在自述文件中缩小了其大小"
       }
     },
     "titleLang": {
