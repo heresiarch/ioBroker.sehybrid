@@ -870,7 +870,10 @@ describe('state-manager => StateManager', () => {
         /** Every SunSpec value def paired with the channel it is created under. */
         const sunspecCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
             ...allValueDefs.map(def => ({ channel: channelForDef(def), def })),
-            ...allBatteryValueDefs.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
+            ...allBatteryValueDefs.map((def): { channel: ChannelPath; def: SunSpecRegisterDef } => ({
+                channel: 'battery.1',
+                def,
+            })),
         ];
 
         // ----------------------------------------------------------------
@@ -923,10 +926,12 @@ describe('state-manager => StateManager', () => {
                     channel: channelForDef(def),
                     def,
                 })),
-                ...BATTERY_MAP.filter(d => d.role === 'info').map(def => ({
-                    channel: 'battery.1' as ChannelPath,
-                    def,
-                })),
+                ...BATTERY_MAP.filter(d => d.role === 'info').map(
+                    (def): { channel: ChannelPath; def: SunSpecRegisterDef } => ({
+                        channel: 'battery.1',
+                        def,
+                    }),
+                ),
             ];
             expect(infoCases.length, 'at least one info def exercised').to.be.greaterThan(0);
 
@@ -1009,7 +1014,10 @@ describe('state-manager => StateManager', () => {
         it('has no common.states on any status/measurement/info state (Req 3.2, 3.6)', async () => {
             const infoCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
                 ...SUNSPEC_MAP.filter(d => d.model !== 'common').map(def => ({ channel: channelForDef(def), def })),
-                ...BATTERY_MAP.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
+                ...BATTERY_MAP.map((def): { channel: ChannelPath; def: SunSpecRegisterDef } => ({
+                    channel: 'battery.1',
+                    def,
+                })),
             ];
 
             for (const { channel, def } of infoCases) {
