@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "news": {
+      "1.0.16": {
+        "en": "fixed io-package.json\nfixed tests",
+        "de": "io-package.json behoben\nfeste Tests",
+        "ru": "исправленный io-package.json\nфиксированные тесты",
+        "pt": "pacote io-json fixo\ntestes fixos",
+        "nl": "io-package.json opgelost\nvaste tests",
+        "fr": "io-package.json fixe\ntests fixes",
+        "it": "io-package.json fisso\ntest fissi",
+        "es": "paquete io fijo.json\npruebas fijas",
+        "pl": "naprawiono io-package.json\nstałe testy",
+        "uk": "виправлений IO-пакет.json\nфіксовані тести",
+        "zh-cn": "修复了 io-package.js\n固定测试"
+      },
       "1.0.15": {
         "en": "fix Lint errors",
         "de": "Fix Lint-Fehler",

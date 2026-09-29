@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.11 (2026-09-25)
+* fixed doc
+
 ## 1.0.10 (2026-09-25)
 * hotfix for missing static files in npm
 * hotfix for port issue
