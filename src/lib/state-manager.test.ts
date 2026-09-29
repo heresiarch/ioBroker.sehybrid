@@ -870,7 +870,7 @@ describe('state-manager => StateManager', () => {
         /** Every SunSpec value def paired with the channel it is created under. */
         const sunspecCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
             ...allValueDefs.map(def => ({ channel: channelForDef(def), def })),
-            ...allBatteryValueDefs.map(def => ({ channel: 'battery.1', def })),
+            ...allBatteryValueDefs.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
         ];
 
         // ----------------------------------------------------------------
@@ -924,7 +924,7 @@ describe('state-manager => StateManager', () => {
                     def,
                 })),
                 ...BATTERY_MAP.filter(d => d.role === 'info').map(def => ({
-                    channel: 'battery.1',
+                    channel: 'battery.1' as ChannelPath,
                     def,
                 })),
             ];
@@ -1009,7 +1009,7 @@ describe('state-manager => StateManager', () => {
         it('has no common.states on any status/measurement/info state (Req 3.2, 3.6)', async () => {
             const infoCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
                 ...SUNSPEC_MAP.filter(d => d.model !== 'common').map(def => ({ channel: channelForDef(def), def })),
-                ...BATTERY_MAP.map(def => ({ channel: 'battery.1', def })),
+                ...BATTERY_MAP.map(def => ({ channel: 'battery.1' as ChannelPath, def })),
             ];
 
             for (const { channel, def } of infoCases) {

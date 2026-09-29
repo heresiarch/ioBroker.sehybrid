@@ -16,19 +16,6 @@
         "uk": "виправлення помилок Lint",
         "zh-cn": "修复 Lint 错误"
       },
-      "1.0.14": {
-        "en": "fix object states and enumerations",
-        "de": "Objektstatus und Aufzählungen korrigieren",
-        "ru": "исправить состояния и перечисления объектов",
-        "pt": "fixar estados e enumerações",
-        "nl": "objectstatussen en opsommingen corrigeren",
-        "fr": "états et énumérations des objets fixes",
-        "it": "fissa stati ed enumerazioni",
-        "es": "fijar estados y enumeraciones de objetos",
-        "pl": "naprawianie stanów obiektów i wyliczeń",
-        "uk": "виправлення станів об'єктів та перерахувань",
-        "zh-cn": "修复对象状态和枚举"
-      },
       "1.0.13": {
         "en": "minor fixes package.json",
         "de": "Kleine Fixes package.json",
