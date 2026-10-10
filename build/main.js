@@ -188,6 +188,9 @@ class Sehybrid extends utils.Adapter {
       } else {
         await this.modbusClient.writeMultipleRegisters(def.address, (0, import_sunspec_decode.encodeUint32le)(value));
       }
+      this.log.info(
+        `DEADBEEF Wrote ${leaf} (0x${def.address.toString(16).toUpperCase()}) = ${value} via ${def.kind === "uint16" ? "FC06" : "FC16"}`
+      );
       await this.stateManager.ackStorEdgeWrite(def, value);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
