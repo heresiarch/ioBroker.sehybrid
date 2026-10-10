@@ -195,8 +195,11 @@ async function resetSEBatteryLimit() {
   stopWatchdog();
   let limit = await getStateAsync(SE_DISCHARGE_LIMIT_STR);
   let cc = await getStateAsync(SE_CONTROL_MODE_STR);
-  if (cc.val === SE_CONTROL_MODE_REMOTE) {
-    if (limit.val != SE_DISCHARGE_LIMIT_DEFAULT) {
+  // Guard against a null state object or null .val (e.g. the register still reads
+  // the NOT_IMPLEMENTED sentinel 0xFFFF and the adapter maps it to null) so the
+  // comparison never throws on an uninitialized / inactive control mode.
+  if (cc && cc.val === SE_CONTROL_MODE_REMOTE) {
+    if (limit && limit.val != SE_DISCHARGE_LIMIT_DEFAULT) {
       setState(SE_DISCHARGE_LIMIT_STR, SE_DISCHARGE_LIMIT_DEFAULT);
     }
   }
