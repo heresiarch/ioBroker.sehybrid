@@ -72,7 +72,7 @@
     "prebuild": "rimraf build admin/assets admin/index.html src-admin/build",
     "build": "npm run build:ts && npm run build:react",
     "watch": "build-adapter ts --watch",
-    "test:ts": "mocha --config test/mocharc.custom.json src/**/*.test.ts",
+    "test:ts": "mocha --config test/mocharc.custom.json 'src/**/*.test.ts'",
     "test:package": "mocha test/package test/postinstall.test.js test/postinstall-preservation.test.js --exit",
     "test:integration": "mocha test/integration --exit",
     "test": "npm run test:ts && npm run test:package",

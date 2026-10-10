@@ -118,7 +118,10 @@ class RecordingClient implements IModbusClient {
 /** One recorded call to the mock state manager's poll-read or ack path. */
 interface RecordedStateWrite {
     def: StorEdgeControlRegisterDef;
-    value: number;
+    // `null` is reachable only on the poll-read path (writeStorEdgeValue) for a
+    // register whose sentinel is written through (remoteControlCommandMode); the
+    // write-ack path (ackStorEdgeWrite) only ever records a validated number.
+    value: number | null;
 }
 
 /**
@@ -137,7 +140,7 @@ class MockStateManager {
         return Promise.resolve();
     }
 
-    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number | null): Promise<void> {
         this.writeStorEdgeValueCalls.push({ def, value });
         return Promise.resolve();
     }
@@ -189,11 +192,15 @@ function wordsForStorEdgeDef(
 
 /**
  * Exact mirror of main.ts's pollOnce StorEdgeControlBlock read tail: read both
- * spans through the given client, decode each of the nine defs, and forward
- * every non-null decode to the mock state manager's `writeStorEdgeValue`. A
- * thrown read error propagates to the caller — unhandled here, exactly as
- * main.ts lets it propagate to the enclosing try/catch — so no special-casing
- * is added.
+ * spans through the given client, decode each of the nine defs, and forward the
+ * decode to the mock state manager's `writeStorEdgeValue`. For
+ * `remoteControlCommandMode` the decode is forwarded even when it is null (the
+ * 0xFFFF NOT_IMPLEMENTED sentinel the inverter reports while not in Remote
+ * Control is a real current fact, not missing data, so it must overwrite any
+ * stale previous mode); every other register keeps the retain-last-value
+ * behavior and skips a null decode. A thrown read error propagates to the
+ * caller — unhandled here, exactly as main.ts lets it propagate to the
+ * enclosing try/catch — so no special-casing is added.
  *
  * @param client - The (recording) Modbus client to read through.
  * @param stateManager - The mock state manager to forward decoded values to.
@@ -204,7 +211,9 @@ async function runStorEdgePollRead(client: RecordingClient, stateManager: MockSt
     for (const def of STOREDGE_CONTROL_REGISTERS) {
         const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
         const value = decodeRegisters(words, storEdgeWireDatatype(def));
-        if (value !== null) {
+        if (def.name === 'remoteControlCommandMode') {
+            await stateManager.writeStorEdgeValue(def, value as number | null);
+        } else if (value !== null) {
             await stateManager.writeStorEdgeValue(def, value as number);
         }
     }
@@ -393,6 +402,69 @@ describe('main.ts StorEdgeControlBlock wiring', () => {
                 }),
                 RUNS,
             );
+        });
+
+        // remoteControlCommandMode (0xE00D) is the only control register whose
+        // NOT_IMPLEMENTED sentinel (0xFFFF -> null) is written through instead of
+        // skipped: while the inverter is not in Remote Control the register reports
+        // the sentinel, and that is a real current fact (not missing data), so the
+        // null must overwrite any stale mode (e.g. a 7 left over from a prior hold).
+        // Every other control register keeps the retain-last-value behavior and
+        // skips a null decode.
+        it('writes null through for remoteControlCommandMode on the sentinel, and skips null for the other controls', async () => {
+            // spanA = 0xE004..0xE00C (9 words): all 0xFFFF so every span-A register
+            // decodes to null (uint16 sentinel, uint32le all-ones sentinel) and must be
+            // SKIPPED. spanB = 0xE00D..0xE011 (5 words): word 0 (remoteControlCommandMode)
+            // is the sentinel 0xFFFF; the two float32le limits that follow are given a
+            // real value so they are still written (float32 has no NOT_IMPLEMENTED
+            // sentinel). This isolates the one register whose null is written through.
+            const spanA = new Array<number>(9).fill(0xffff);
+            // 0xE00E/0xE010 float32le = 100.0 W => little-endian WORD order [low, high].
+            // 100.0f = 0x42C80000 => high word 0x42C8, low word 0x0000.
+            const spanB = [0xffff, 0x0000, 0x42c8, 0x0000, 0x42c8];
+
+            const client = new RecordingClient();
+            client.readHoldingRegistersImpl = (address: number, length: number) => {
+                if (address === 0xe004 && length === 9) {
+                    return Promise.resolve(spanA);
+                }
+                if (address === 0xe00d && length === 5) {
+                    return Promise.resolve(spanB);
+                }
+                return Promise.resolve([]);
+            };
+            const stateManager = new MockStateManager();
+
+            await runStorEdgePollRead(client, stateManager);
+
+            // remoteControlCommandMode is written exactly once, with null.
+            const cmdModeCalls = stateManager.writeStorEdgeValueCalls.filter(
+                c => c.def.name === 'remoteControlCommandMode',
+            );
+            expect(cmdModeCalls.length, 'remoteControlCommandMode must be written on the sentinel').to.equal(1);
+            expect(cmdModeCalls[0].value, 'the sentinel must be written through as null').to.equal(null);
+
+            // No OTHER register is ever written with null. The uint16/uint32 span-A
+            // registers all decode to the sentinel (null) here and are skipped, but the
+            // two float32 registers in span A (storageAcChargeLimit,
+            // storageBackupReservedSetting) have NO NOT_IMPLEMENTED sentinel — float32
+            // never decodes to null — so they are still written with a (non-null) value.
+            // Together with the two span-B float32 limits that gives four non-null
+            // writes, and none of them is null.
+            const otherCalls = stateManager.writeStorEdgeValueCalls.filter(
+                c => c.def.name !== 'remoteControlCommandMode',
+            );
+            otherCalls.forEach(c => {
+                expect(c.value, `${c.def.name} must never be written with null`).to.not.equal(null);
+            });
+            // Exactly the four float32 registers (no NOT_IMPLEMENTED sentinel) are
+            // written; every uint16/uint32 register that read the sentinel is skipped.
+            expect(otherCalls.map(c => c.def.name).sort()).to.deep.equal([
+                'remoteControlChargeLimit',
+                'remoteControlDischargeLimit',
+                'storageAcChargeLimit',
+                'storageBackupReservedSetting',
+            ]);
         });
     });
 

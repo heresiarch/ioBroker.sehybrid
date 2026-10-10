@@ -367,7 +367,16 @@ class Sehybrid extends utils.Adapter {
             for (const def of STOREDGE_CONTROL_REGISTERS) {
                 const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
                 const value = decodeRegisters(words, storEdgeWireDatatype(def));
-                if (value !== null) {
+                // remoteControlCommandMode (0xE00D) returns the NOT_IMPLEMENTED sentinel
+                // (0xFFFF -> null) whenever the inverter is not in Remote Control. That is
+                // a real, current fact about the device, not missing data, so the sentinel
+                // null is written through on every successful read instead of being
+                // skipped — otherwise the state would retain a stale mode (e.g. a 7 from a
+                // past hold) that no longer reflects the register. All other control
+                // registers keep the retain-last-value behavior: a null decode is skipped.
+                if (def.name === 'remoteControlCommandMode') {
+                    await stateManager.writeStorEdgeValue(def, value as number | null);
+                } else if (value !== null) {
                     await stateManager.writeStorEdgeValue(def, value as number);
                 }
             }
