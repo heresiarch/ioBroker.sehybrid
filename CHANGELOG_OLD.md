@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.13 (2026-09-28)
+* minor fixes package.json
+
 ## 1.0.12 (2026-09-25)
 * minor fixes
 

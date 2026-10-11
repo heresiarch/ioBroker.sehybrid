@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "news": {
+      "1.0.18": {
+        "en": "reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control\ndocument the `remoteControlCommandMode` null behavior in the README\nfix the `test:ts` glob so the main-module tests actually run",
+        "de": "Reflect live `RemoteControlCommandMode`: Sentinel `0xFFFF` NOT_IMPLEMENTED bei jedem Abruf als `Null` durchschreiben, anstatt den alten Modus beizubehalten, wenn der Inverter nicht ferngesteuert ist\nNull-Verhalten von `RemoteControlCommandMode` in der README\nFix den `test:ts`-Globus, damit die Hauptmodultests laufen",
+        "ru": "отразите «RemoteControlCommandMode» в реальном времени: вместо того, чтобы сохранять устаревший режим, когда инвертор не включен в пульт дистанционного управления, записывайте сигнал «0xFFFF» NOT_IMPLEMENTED как «null»\nзадокументируйте нулевое поведение «RemoteControlCommandMode» в README\nисправьте глобус `test:ts`, чтобы тесты основного модуля действительно запускались",
+        "pt": "reflita `remoteControlCommandMode` ao vivo: escreva a sentinela `0xFFFF` NOT_IMPLEMENTED como `null` em cada enquete em vez de manter o modo obsoleto quando o inversor não está no controle remoto\ndocumente o comportamento nulo do `remoteControlCommandMode` no README\ncorrija o globo `test:ts` para rodar os testes do módulo principal",
+        "nl": "reflect live `RemoteControlCommandMode`: schrijf de `0xFFFF` NOT_IMPLEMENTATED sentinel door als `null` bij elke peiling in plaats van een verouderde modus te behouden wanneer de omvormer niet op de afstandsbediening staat\ndocumenteer het nulgedrag van `RemoteControlCommandMode` in de README\nrepareer de `test:ts` glob zodat de tests van de hoofdmodule daadwerkelijk worden uitgevoerd",
+        "fr": "reflétez « RemoteControlCommandMode » en direct : inscrivez la sentinelle NOT_IMPLEMENTED « 0xFFFF » en tant que « null » à chaque sondage au lieu de rester en mode obsolète lorsque l'onduleur n'est pas télécommandé\ndocumente le comportement nul de RemoteControlCommandMode dans le README\ncorriger le glob « test:ts » pour lancer les tests du module principal",
+        "it": "rifletta `RemoteControlCommandMode` in tempo reale: scriva la sentinella `0xFFFF` NOT_IMPLEMENTED come `null` in ogni sondaggio invece di mantenere la modalità obsoleta\ndocumenta il comportamento nullo `RemoteControlCommandMode` nel README\naggiusta il glob `test:ts` in modo che i test del modulo principale",
+        "es": "reflect live `RemoteControlCommandMode`: escriba el centinela NOT_IMPLEMENTED 0xFFF como «nulo» en cada encuesta en lugar de mantener un modo obsoleto cuando el inversor no está en el mando a distancia\ndocumentar el comportamiento nulo de `RemoteControlCommandMode` en el README\narreglar el glob `test:ts` para que las pruebas del módulo principal se ejecuten",
+        "pl": "odzwierciedla na żywo `RemoteControlCommandMode`: wpisz „0xFFFF” not_IMPLEMENTED sentinel jako „null” na każdej ankiecie zamiast zachować tryb nieaktualny, gdy falownik nie jest w zdalnym sterowaniu\nudokumentuj zachowanie null `RemoteControlCommandMode` w README\nnapraw „test: ts” glob, aby testy modułu głównego faktycznie działały",
+        "uk": "відобразити живий `RemoteControlCommandMode`: запишіть сторожовий `0xFFFF` NOT_IMPLEMENTED як `null` на кожному опитуванні замість того, щоб зберігати застарілий режим, коли інвертор не знаходиться в пульті дистанційного керування\nзадокументувати нульову поведінку `RemoteControlCommandMode` у файлі README\nвиправлено глобус `test:ts`, щоб тести основного модуля фактично запускалися",
+        "zh-cn": "实时反射 `remoteControlCommandMode`：在每次投票中将 `0xFFFF` NOT_IMPLETED SENTINEL写成 “null”，而不是在逆变器不处于远程控制状态时保持陈旧模式\n在 README 中记录 `remoteControlCommandMode`的空行为\n修复 `test: ts` glob 这样主模块测试才能真正运行"
+      },
       "1.0.17": {
         "en": "fix issues by iobroker review",
         "de": "Probleme per Iobroker Review lösen",
@@ -80,32 +93,6 @@
         "pl": "naprawiony dokument",
         "uk": "фіксований документ",
         "zh-cn": "固定文档"
-      },
-      "1.0.10": {
-        "en": "hotfix for missing static files in npm\nhotfix for port issue",
-        "de": "Hotfix für fehlende Dateien in NPM\nHotfix für Portproblem",
-        "ru": "исправление для отсутствия статических файлов в npm\nисправление проблемы с портом",
-        "pt": "hotfix para perder arquivos estáticos no npm\nhotfix for port issue",
-        "nl": "hotfix voor ontbrekende statische bestanden in npm\nhotfix voor een probleem met de poort",
-        "fr": "correctif pour fichiers statiques perdus dans NPM\ncorrectif pour le problème de port",
-        "it": "hotfix per file statici mancanti in npm\nhotfix per le porte",
-        "es": "revisión de archivos estáticos faltantes en npm\nhotfix para Port Issue",
-        "pl": "poprawka dla brakujących plików statycznych w npm\npoprawka dotycząca problemu z portem",
-        "uk": "виправлення для відсутніх статичних файлів у npm\nвиправлення проблеми з портом",
-        "zh-cn": "修复 npm 中缺少静态文件的问题\n端口问题的修补程序"
-      },
-      "1.0.9": {
-        "en": "fixed lint config\nchecked that responsive design is working",
-        "de": "Feste Lint Config\ngeprüft, ob responsives Design läuft",
-        "ru": "фиксированная конфигурация линта\nпроверил, работает ли адаптивный дизайн",
-        "pt": "lint config fixo\nverifiquei se o design responsivo funciona",
-        "nl": "vaste lintconfiguratie\nIk heb gecontroleerd of het responsieve ontwerp werkt",
-        "fr": "configuration lint corrigée\na vérifié que le design réactif fonctionne",
-        "it": "fix lint config\nverificato che il responsive design funzioni",
-        "es": "lint config fijo\ncomprobó que el diseño responsivo funciona",
-        "pl": "stała konfiguracja kłaczków\nsprawdziłem, czy responsywny projekt działa",
-        "uk": "виправлена конфігурація lint\nперевірено, що адаптивний дизайн працює",
-        "zh-cn": "固定的 lint 配置\n已检查响应式设计是否有效"
       }
     },
     "titleLang": {
