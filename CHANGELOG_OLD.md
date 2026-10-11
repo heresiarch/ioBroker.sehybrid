@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.12 (2026-09-25)
+* minor fixes
+
 ## 1.0.11 (2026-09-25)
 * fixed doc
 
