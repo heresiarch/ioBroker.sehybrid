@@ -9,8 +9,7 @@ The adapter is split into two independent parts:
 
 - **Backend** (the adapter itself) — TypeScript in `src/`, compiled with `build-adapter ts` into `build/`.
 - **Admin UI** (the configuration page) — a self-contained [Vite](https://vitejs.dev/) + React + TypeScript
-  project in `src-admin/`. It is built and copied into `admin/` (`admin/index.html`, `admin/tab.html`,
-  `admin/assets/*`) by the root-level `tasks.js` orchestrator.
+  project in `src-admin/`. It is built and copied into `admin/` (`admin/index.html`, `admin/assets/*`) by the root-level `tasks.js` orchestrator.
 
 The admin UI has its own `package.json` and `node_modules` and is installed/linted separately from the
 backend. The root `postinstall` (`scripts/postinstall.js`) installs the admin dependencies automatically after

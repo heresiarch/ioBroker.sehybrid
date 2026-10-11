@@ -83,9 +83,19 @@ other adapter, and it is range-validated and written straight through to the inv
 - `StorEdgeControlBlock.storageBackupReservedSetting` — raw `0xE008`, Backup Reserved Setting (%, 0–100)
 - `StorEdgeControlBlock.storageChargeDischargeDefaultMode` — raw `0xE00A`, Charge/Discharge Default Mode (0–7)
 - `StorEdgeControlBlock.remoteControlCommandTimeout` — raw `0xE00B`, Remote Control Command Timeout (s)
-- `StorEdgeControlBlock.remoteControlCommandMode` — raw `0xE00D`, Remote Control Command Mode (0–7)
+- `StorEdgeControlBlock.remoteControlCommandMode` — raw `0xE00D`, Remote Control Command Mode (0–7); reads
+  `null` while the inverter is not in Remote Control (see note below)
 - `StorEdgeControlBlock.remoteControlChargeLimit` — raw `0xE00E`, Remote Control Charge Limit (W)
 - `StorEdgeControlBlock.remoteControlDischargeLimit` — raw `0xE010`, Remote Control Discharge Limit (W)
+
+> **`remoteControlCommandMode` is `null` unless Remote Control is active.** The inverter only reports a real
+> command mode (`0`–`7`) in this register while `storageControlMode` is set to `4` (Remote Control). When the
+> inverter is in any other storage control mode, register `0xE00D` returns the SunSpec `NOT_IMPLEMENTED`
+> sentinel `0xFFFF`, which the adapter maps to `null`. This is expected, not an error — the register becomes a
+> real value again as soon as `storageControlMode = 4` is set (and reverts to `null` after the inverter leaves
+> Remote Control, e.g. once `remoteControlCommandTimeout` elapses). The adapter writes this `null` through on
+> every poll so the state always reflects the live register rather than retaining a stale mode from an earlier
+> Remote Control hold.
 
 Each state's accepted range is documented on the object itself (`common.min`/`common.max` in the admin object
 tree). A write outside that range is rejected: the adapter logs an error, does not write to the inverter, and

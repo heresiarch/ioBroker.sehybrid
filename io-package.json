@@ -22,7 +22,7 @@
         "ru": "исправить ошибки Lint",
         "pt": "fixe erros Lint",
         "nl": "Lint-fouten herstellen",
-        "fr": "fix Lint errors",
+        "fr": "correction des erreurs Lint",
         "it": "fix Lint",
         "es": "corregir errores de Lint",
         "pl": "naprawić błędy Lint",
@@ -74,7 +74,7 @@
         "ru": "исправление для отсутствия статических файлов в npm\nисправление проблемы с портом",
         "pt": "hotfix para perder arquivos estáticos no npm\nhotfix for port issue",
         "nl": "hotfix voor ontbrekende statische bestanden in npm\nhotfix voor een probleem met de poort",
-        "fr": "correctif pour fichiers statiques perdus dans NPM\nhotfix for port issue",
+        "fr": "correctif pour fichiers statiques perdus dans NPM\ncorrectif pour le problème de port",
         "it": "hotfix per file statici mancanti in npm\nhotfix per le porte",
         "es": "revisión de archivos estáticos faltantes en npm\nhotfix para Port Issue",
         "pl": "poprawka dla brakujących plików statycznych w npm\npoprawka dotycząca problemu z portem",
@@ -87,7 +87,7 @@
         "ru": "фиксированная конфигурация линта\nпроверил, работает ли адаптивный дизайн",
         "pt": "lint config fixo\nverifiquei se o design responsivo funciona",
         "nl": "vaste lintconfiguratie\nIk heb gecontroleerd of het responsieve ontwerp werkt",
-        "fr": "fixed lint config\na vérifié que le design réactif fonctionne",
+        "fr": "configuration lint corrigée\na vérifié que le design réactif fonctionne",
         "it": "fix lint config\nverificato che il responsive design funzioni",
         "es": "lint config fijo\ncomprobó que el diseño responsivo funciona",
         "pl": "stała konfiguracja kłaczków\nsprawdziłem, czy responsywny projekt działa",
@@ -150,25 +150,7 @@
     "connectionType": "local",
     "dataSource": "poll",
     "adminUI": {
-      "config": "html",
-      "tab": "html"
-    },
-    "adminTab": {
-      "singleton": true,
-      "name": {
-        "en": "Instance settings",
-        "de": "Instanzeinstellungen",
-        "ru": "Настройки экземпляра",
-        "pt": "Configurações de instância",
-        "nl": "Instantie-instellingen",
-        "fr": "Paramètres des instances",
-        "it": "Impostazioni dell'istanza",
-        "es": "Configuración de instancia",
-        "pl": "Ustawienia instancji",
-        "uk": "Налаштування примірника",
-        "zh-cn": "实例设置"
-      },
-      "link": "tab.html"
+      "config": "html"
     },
     "eraseOnUpload": true,
     "dependencies": [

@@ -3,8 +3,8 @@
  *
  * The admin UI lives in the self-contained Vite project `src-admin/`. This script
  * installs its dependencies, builds it with Vite and copies the result into `admin/`,
- * so that ioBroker serves `admin/index.html` (instance config) and `admin/tab.html`
- * (admin tab) together with the hashed asset bundle in `admin/assets/`.
+ * so that ioBroker serves `admin/index.html` (instance config) together with the
+ * hashed asset bundle in `admin/assets/`.
  *
  * Usage:
  *   node tasks              full pipeline (clean -> npm -> build -> copy -> patch)
@@ -12,7 +12,7 @@
  *   node tasks --1-npm      install src-admin dependencies
  *   node tasks --2-build    run the Vite build
  *   node tasks --3-copy     copy src-admin/build into admin/
- *   node tasks --4-patch    patch the served html (socket.io include, tab.html)
+ *   node tasks --4-patch    patch the served html (socket.io include)
  *
  * MIT License
  */
@@ -43,9 +43,8 @@ function installNpmLocal() {
 }
 
 /**
- * Rewrite the dev-only socket.io loader shim to the production include, and
- * provide a `tab.html` alongside `index.html` for the admin tab. Both html files
- * load the same bundle; the `?tab` query selects the Tab component at runtime.
+ * Rewrite the dev-only socket.io loader shim in `admin/index.html` to the
+ * production include.
  */
 function patchFiles() {
     const indexPath = `${__dirname}/admin/index.html`;
@@ -56,10 +55,6 @@ function patchFiles() {
             `<script type="text/javascript" src="./../../lib/js/socket.io.js"></script>`,
         );
         fs.writeFileSync(indexPath, code);
-
-        // Provide tab.html for the admin tab (same bundle, ?tab selects the Tab view).
-        const tabCode = code.replace(/<title>[^<]*<\/title>/, '<title>sehybrid Tab</title>');
-        fs.writeFileSync(`${__dirname}/admin/tab.html`, tabCode);
     }
 }
 

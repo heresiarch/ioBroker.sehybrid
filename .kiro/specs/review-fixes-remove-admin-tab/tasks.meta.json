@@ -1,0 +1,212 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test (surface all four defect patterns)": {
+      "status": "passed",
+      "failingExample": "Exploration test FAILED as expected (32 failing assertions), confirming all four defect patterns. Counterexamples:\n\nPART 1 — Tab wiring present:\n- common.adminUI == { config: 'html', tab: 'html' } (has forbidden 'tab' key)\n- common.adminTab block present (singleton + 11-language name + link: 'tab.html')\n- src-admin/src/Tab.tsx exists and contains \"Add your components here.\"\n- src-admin/src/index.tsx imports Tab from './Tab' and branches on window.location.search/hash .includes('tab')\n- tasks.js patchFiles writes admin/tab.html via writeFileSync (tabCode)\n- src-admin/vite.config.watch.ts patch-admin-html writes admin/tab.html via writeFileSync (tabCode)\n- committed admin/tab.html exists\n\nPART 2 — French news == English:\n- news[\"1.0.15\"].fr == \"fix Lint errors\" == en\n- firstLine(news[\"1.0.9\"].fr) == \"fixed lint config\" == en line 1\n- secondLine(news[\"1.0.10\"].fr) == \"hotfix for port issue\" == en line 2\n\nPART 3 — in-use i18n untranslated (all 10 non-English files de,es,fr,it,nl,pl,pt,ru,uk,zh-cn):\n- \"Test Connection\" and \"Invalid host\" are byte-identical to English in every non-English file\n\nPART 4 — unused key present in all 11 files (en,de,es,fr,it,nl,pl,pt,ru,uk,zh-cn):\n- \"sehybrid adapter settings\" present everywhere; the confirmation assertion verified it is referenced by no .tsx (passed)",
+      "lastRunTimestamp": 1791618884817
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test (surface all four defect patterns)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677567
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618687871
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618910405
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677639
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618919014
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619114378
+      }
+    ],
+    "3.1 Delete the admin tab scaffold and fix the bootstrap (Changes 2 and 3)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677708
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619123300
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619202598
+      }
+    ],
+    "3.2 Remove tab.html emission from both build steps and delete the committed artifact (Change 4)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677765
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619205815
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619305045
+      }
+    ],
+    "3.3 Remove tab registration from io-package.json (Change 1)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677810
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619308871
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619373144
+      }
+    ],
+    "3.4 Verify the src-admin build compiles after tab removal": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677852
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619378620
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619547840
+      }
+    ],
+    "4. Fix for untranslated French news strings in io-package.json (Change 5)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677892
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619556014
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619641226
+      }
+    ],
+    "5. Fix for untranslated / unused admin i18n keys (Change 6)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677926
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619646279
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619960346
+      }
+    ],
+    "6. Verify bug condition exploration test now passes (fix checking)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618677963
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619964597
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791620018518
+      }
+    ],
+    "7. Verify preservation tests still pass (regression check)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618678007
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791620023095
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791620086900
+      }
+    ],
+    "8. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618678043
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791620094744
+      },
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791620251811
+      }
+    ],
+    "9. Re-review deliverables (MANUAL / PR action — not a code change)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791618678079
+      }
+    ],
+    "3. Fix for admin-tab removal (coupled changes: Tab.tsx, index.tsx, build steps, io-package tab registration)": [
+      {
+        "executionId": "c839fa65-4ff2-4ebf-ab33-bd90ac7d23a8",
+        "chatSessionId": "sess_35b34cd3-c914-449d-9954-2f3fba335940",
+        "timestamp": 1791619547900
+      }
+    ]
+  }
+}

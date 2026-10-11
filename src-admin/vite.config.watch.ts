@@ -9,9 +9,8 @@ import { defineConfig } from 'vite';
 // into admin/ by ../tasks.js), this config writes directly into ../admin so the
 // dev-server's browser-sync can serve and hot-reload the files it watches.
 //
-// A tiny plugin runs after every rebuild to reproduce the two things tasks.js does
-// in its patch step: swap the dev socket.io shim for the production include, and
-// emit admin/tab.html next to admin/index.html.
+// A tiny plugin runs after every rebuild to reproduce what tasks.js does in its
+// patch step: swap the dev socket.io shim in admin/index.html for the production include.
 const ADMIN_DIR = path.resolve(__dirname, '../admin');
 
 function patchAdminHtml() {
@@ -28,9 +27,6 @@ function patchAdminHtml() {
                 `<script type="text/javascript" src="./../../lib/js/socket.io.js"></script>`,
             );
             fs.writeFileSync(indexPath, code);
-
-            const tabCode = code.replace(/<title>[^<]*<\/title>/, '<title>sehybrid Tab</title>');
-            fs.writeFileSync(path.join(ADMIN_DIR, 'tab.html'), tabCode);
         },
     };
 }

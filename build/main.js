@@ -188,6 +188,9 @@ class Sehybrid extends utils.Adapter {
       } else {
         await this.modbusClient.writeMultipleRegisters(def.address, (0, import_sunspec_decode.encodeUint32le)(value));
       }
+      this.log.info(
+        `DEADBEEF Wrote ${leaf} (0x${def.address.toString(16).toUpperCase()}) = ${value} via ${def.kind === "uint16" ? "FC06" : "FC16"}`
+      );
       await this.stateManager.ackStorEdgeWrite(def, value);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -262,7 +265,9 @@ class Sehybrid extends utils.Adapter {
       for (const def of import_storedge_control_map.STOREDGE_CONTROL_REGISTERS) {
         const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
         const value = (0, import_sunspec_decode.decodeRegisters)(words, storEdgeWireDatatype(def));
-        if (value !== null) {
+        if (def.name === "remoteControlCommandMode") {
+          await stateManager.writeStorEdgeValue(def, value);
+        } else if (value !== null) {
           await stateManager.writeStorEdgeValue(def, value);
         }
       }

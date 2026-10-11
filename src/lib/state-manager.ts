@@ -71,8 +71,13 @@ export interface IStateManager {
      * (Req 8.1, 8.2, 8.4, 9.1). Called unconditionally on every adapter start.
      */
     ensureStorEdgeControlBlock(): Promise<void>;
-    /** Write a live-read value to a StorEdgeControlBlock state with ack=true (poll-read path). */
-    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
+    /**
+     * Write a live-read value to a StorEdgeControlBlock state with ack=true (poll-read path).
+     * `null` is accepted so a register that read the NOT_IMPLEMENTED sentinel (e.g.
+     * `remoteControlCommandMode` while the inverter is not in Remote Control) is reflected
+     * as "no value" rather than retaining a stale previous value.
+     */
+    writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number | null): Promise<void>;
     /** Acknowledge a successful user-driven write with the written value (write-dispatch path). */
     ackStorEdgeWrite(def: StorEdgeControlRegisterDef, value: number): Promise<void>;
 }
@@ -299,7 +304,7 @@ export class StateManager implements IStateManager {
         }
     }
 
-    async writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+    async writeStorEdgeValue(def: StorEdgeControlRegisterDef, value: number | null): Promise<void> {
         await this.ackStorEdgeValue(def, value);
     }
 
@@ -314,9 +319,10 @@ export class StateManager implements IStateManager {
      * `ackStorEdgeWrite`) so each call site reads clearly.
      *
      * @param def - The StorEdgeControlBlock register definition being written.
-     * @param value - The value to write, acknowledged.
+     * @param value - The value to write, acknowledged. `null` reflects a NOT_IMPLEMENTED
+     *   sentinel read as "no value".
      */
-    private async ackStorEdgeValue(def: StorEdgeControlRegisterDef, value: number): Promise<void> {
+    private async ackStorEdgeValue(def: StorEdgeControlRegisterDef, value: number | null): Promise<void> {
         await this.adapter.setStateAsync(`${STOREDGE_CONTROL_CHANNEL}.${def.name}`, { val: value, ack: true });
     }
 }
