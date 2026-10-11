@@ -176,7 +176,8 @@ class StateManager {
    * `ackStorEdgeWrite`) so each call site reads clearly.
    *
    * @param def - The StorEdgeControlBlock register definition being written.
-   * @param value - The value to write, acknowledged.
+   * @param value - The value to write, acknowledged. `null` reflects a NOT_IMPLEMENTED
+   *   sentinel read as "no value".
    */
   async ackStorEdgeValue(def, value) {
     await this.adapter.setStateAsync(`${STOREDGE_CONTROL_CHANNEL}.${def.name}`, { val: value, ack: true });

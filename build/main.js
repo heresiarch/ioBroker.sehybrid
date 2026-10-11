@@ -265,7 +265,9 @@ class Sehybrid extends utils.Adapter {
       for (const def of import_storedge_control_map.STOREDGE_CONTROL_REGISTERS) {
         const words = wordsForStorEdgeDef(def, blockWordsA, blockWordsB);
         const value = (0, import_sunspec_decode.decodeRegisters)(words, storEdgeWireDatatype(def));
-        if (value !== null) {
+        if (def.name === "remoteControlCommandMode") {
+          await stateManager.writeStorEdgeValue(def, value);
+        } else if (value !== null) {
           await stateManager.writeStorEdgeValue(def, value);
         }
       }
