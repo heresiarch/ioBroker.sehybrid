@@ -93,6 +93,19 @@
         "pl": "poprawka dla brakujących plików statycznych w npm\npoprawka dotycząca problemu z portem",
         "uk": "виправлення для відсутніх статичних файлів у npm\nвиправлення проблеми з портом",
         "zh-cn": "修复 npm 中缺少静态文件的问题\n端口问题的修补程序"
+      },
+      "1.0.9": {
+        "en": "fixed lint config\nchecked that responsive design is working",
+        "de": "Feste Lint Config\ngeprüft, ob responsives Design läuft",
+        "ru": "фиксированная конфигурация линта\nпроверил, работает ли адаптивный дизайн",
+        "pt": "lint config fixo\nverifiquei se o design responsivo funciona",
+        "nl": "vaste lintconfiguratie\nIk heb gecontroleerd of het responsieve ontwerp werkt",
+        "fr": "configuration lint corrigée\na vérifié que le design réactif fonctionne",
+        "it": "fix lint config\nverificato che il responsive design funzioni",
+        "es": "lint config fijo\ncomprobó que el diseño responsivo funciona",
+        "pl": "stała konfiguracja kłaczków\nsprawdziłem, czy responsywny projekt działa",
+        "uk": "виправлена конфігурація lint\nперевірено, що адаптивний дизайн працює",
+        "zh-cn": "固定的 lint 配置\n已检查响应式设计是否有效"
       }
     },
     "titleLang": {
