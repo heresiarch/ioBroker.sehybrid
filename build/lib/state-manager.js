@@ -67,6 +67,11 @@ class StateManager {
   createdChannels = /* @__PURE__ */ new Set();
   /** State ids already ensured this run, to make ensureState a no-op on repeat. */
   ensuredStates = /* @__PURE__ */ new Set();
+  /**
+   * Create a state manager.
+   *
+   * @param adapter Adapter surface used to create objects and write states.
+   */
   constructor(adapter) {
     this.adapter = adapter;
   }

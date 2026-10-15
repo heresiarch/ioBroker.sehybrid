@@ -53,7 +53,19 @@ export type ChannelId = ChannelPath;
  * decoupled from the full `ioBroker.Adapter` surface and easy to mock in tests.
  */
 export interface StateManagerAdapter {
+    /**
+     * Create an object only if it does not already exist.
+     *
+     * @param id Full object id to create.
+     * @param obj Object definition to create when absent.
+     */
     setObjectNotExistsAsync(id: string, obj: ioBroker.SettableObject): ioBroker.SetObjectPromise;
+    /**
+     * Write a state value.
+     *
+     * @param id Full state id to write.
+     * @param state State value (and optional metadata) to set.
+     */
     setStateAsync(id: string, state: ioBroker.SettableState): Promise<string>;
 }
 
@@ -173,6 +185,11 @@ export class StateManager implements IStateManager {
     /** State ids already ensured this run, to make ensureState a no-op on repeat. */
     private readonly ensuredStates = new Set<string>();
 
+    /**
+     * Create a state manager.
+     *
+     * @param adapter Adapter surface used to create objects and write states.
+     */
     constructor(adapter: StateManagerAdapter) {
         this.adapter = adapter;
     }

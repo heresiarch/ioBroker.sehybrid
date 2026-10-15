@@ -36,7 +36,7 @@ import { METER_DID_ADDRESS, SunSpecReader, planReadChunks } from './sunspec-read
  * Encode an IEEE-754 float32 into two 16-bit words in little-endian WORD order,
  * matching `decodeRegisters(..., 'float32le')` (words swapped, bytes big-endian).
  *
- * @param value
+ * @param value Float value to encode.
  */
 function encodeFloat32le(value: number): [number, number] {
     const buf = Buffer.allocUnsafe(4);
@@ -51,7 +51,7 @@ function encodeFloat32le(value: number): [number, number] {
  * Encode an unsigned integer (exact to 2^53) into four 16-bit words in little-endian
  * WORD order (lowest word first), matching `decodeRegisters(..., 'uint64le')`.
  *
- * @param value
+ * @param value Unsigned 64-bit value to encode (exact up to 2^53).
  */
 function encodeUint64LE(value: number): [number, number, number, number] {
     const hi = Math.floor(value / 4294967296);
@@ -82,8 +82,8 @@ class MockClient implements IModbusClient {
     /**
      * Set a single register word at an absolute base-0 address.
      *
-     * @param address
-     * @param value
+     * @param address Absolute base-0 register address to set.
+     * @param value Word value to store.
      */
     setWord(address: number, value: number): this {
         this.store.set(address, value & 0xffff);
@@ -93,8 +93,8 @@ class MockClient implements IModbusClient {
     /**
      * Set consecutive register words starting at an absolute base-0 address.
      *
-     * @param address
-     * @param values
+     * @param address Absolute base-0 address of the first word.
+     * @param values Word values to store consecutively.
      */
     setWords(address: number, values: number[]): this {
         values.forEach((v, i) => this.setWord(address + i, v));

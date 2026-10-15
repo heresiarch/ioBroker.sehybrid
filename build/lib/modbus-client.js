@@ -47,6 +47,7 @@ class ModbusClient {
   client;
   /** Our own connected flag, combined with the library's `isOpen` in {@link isConnected}. */
   connected = false;
+  /** Create a client holding a fresh, unconnected `ModbusRTU` instance. */
   constructor() {
     this.client = new import_modbus_serial.default();
   }
@@ -58,10 +59,10 @@ class ModbusClient {
    * additionally raced against a rejecting timeout. The same timeout is applied
    * via `setTimeout` so subsequent read requests inherit the deadline (Req 3.5).
    *
-   * @param host
-   * @param port
-   * @param unitId
-   * @param timeoutMs
+   * @param host Hostname or IP address of the Modbus TCP inverter.
+   * @param port TCP port the inverter's Modbus server listens on.
+   * @param unitId Modbus unit (slave) id to address on the connection.
+   * @param timeoutMs Connect and subsequent request timeout in ms; defaults to {@link DEFAULT_TIMEOUT_MS}.
    */
   async connect(host, port, unitId, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const timeout = rejectAfter(timeoutMs, `Modbus connect to ${host}:${port} timed out after ${timeoutMs} ms`);
@@ -84,9 +85,9 @@ class ModbusClient {
   /**
    * FC03 — read holding registers.
    *
-   * @param address
-   * @param length
-   * @param opts
+   * @param address Starting Modbus register address to read from.
+   * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+   * @param opts Optional read options, e.g. a per-call timeout.
    */
   async readHoldingRegisters(address, length, opts) {
     return this.read("readHoldingRegisters", address, length, opts);
@@ -94,9 +95,9 @@ class ModbusClient {
   /**
    * FC04 — read input registers.
    *
-   * @param address
-   * @param length
-   * @param opts
+   * @param address Starting Modbus register address to read from.
+   * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+   * @param opts Optional read options, e.g. a per-call timeout.
    */
   async readInputRegisters(address, length, opts) {
     return this.read("readInputRegisters", address, length, opts);
@@ -105,9 +106,9 @@ class ModbusClient {
    * FC06 — write a single uint16 value to a holding register (Req 2.1). The value
    * must be an integer in `[0, 0xFFFF]`. Rejects when not connected (Req 2.5).
    *
-   * @param address
-   * @param value
-   * @param opts
+   * @param address Holding register address to write.
+   * @param value uint16 value to write; must be an integer in `[0, 0xFFFF]`.
+   * @param opts Optional write options, e.g. a per-call timeout.
    */
   async writeSingleRegister(address, value, opts) {
     if (!Number.isInteger(value) || value < 0 || value > 65535) {
@@ -120,9 +121,9 @@ class ModbusClient {
    * The array must be non-empty and every word an integer in `[0, 0xFFFF]`.
    * Rejects when not connected (Req 2.5).
    *
-   * @param address
-   * @param values
-   * @param opts
+   * @param address Starting holding register address to write.
+   * @param values Non-empty uint16 word array; each word an integer in `[0, 0xFFFF]`.
+   * @param opts Optional write options, e.g. a per-call timeout.
    */
   async writeMultipleRegisters(address, values, opts) {
     if (!Array.isArray(values) || values.length < 1) {
@@ -166,10 +167,10 @@ class ModbusClient {
    * connection, and returns the numeric register data. Rejects with a descriptive
    * Error rather than throwing synchronously.
    *
-   * @param fn
-   * @param address
-   * @param length
-   * @param opts
+   * @param fn Library read method to invoke — FC03 or FC04.
+   * @param address Starting Modbus register address to read from.
+   * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+   * @param opts Optional read options, e.g. a per-call timeout.
    */
   async read(fn, address, length, opts) {
     var _a;
@@ -201,10 +202,10 @@ class ModbusClient {
    * call against a rejecting timeout so a hung write cannot exceed the deadline.
    * Rejects with a descriptive Error rather than throwing synchronously.
    *
-   * @param fn
-   * @param address
-   * @param payload
-   * @param opts
+   * @param fn Library write method to invoke — FC06 (single) or FC16 (multiple).
+   * @param address Starting holding register address to write.
+   * @param payload The uint16 value (FC06) or uint16 word array (FC16) to write.
+   * @param opts Optional write options, e.g. a per-call timeout.
    */
   async write(fn, address, payload, opts) {
     var _a;

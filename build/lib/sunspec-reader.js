@@ -52,6 +52,11 @@ function planReadChunks(startAddr, totalLen, maxPerRead = import_modbus_client.M
 }
 class SunSpecReader {
   log;
+  /**
+   * Create a reader.
+   *
+   * @param log Logger for recoverable anomalies; defaults to a no-op logger.
+   */
   constructor(log = NOOP_LOGGER) {
     this.log = log;
   }
@@ -61,7 +66,7 @@ class SunSpecReader {
    * being absent, which typically decodes to a sentinel or an unexpected id)
    * yields `null` and a warning (Req 3.3, 3.9).
    *
-   * @param client
+   * @param client Connected read-only Modbus client to read from.
    */
   async detectInverterModel(client) {
     const [raw] = await client.readHoldingRegisters(import_sunspec_map.INVERTER_BASE, 1);
@@ -77,7 +82,7 @@ class SunSpecReader {
    * (base-0 register 40188) and return it when it is 201/202/203/204. Any other
    * value yields `null` and a warning (Req 3.4, 3.9).
    *
-   * @param client
+   * @param client Connected read-only Modbus client to read from.
    */
   async detectMeterModel(client) {
     const [raw] = await client.readHoldingRegisters(METER_DID_ADDRESS, 1);
@@ -97,8 +102,8 @@ class SunSpecReader {
    * and returns one {@link DecodedValue} per inverter measurement value
    * (Req 3.2, 3.6, 3.7, 3.8, 3.10).
    *
-   * @param client
-   * @param model
+   * @param client Connected read-only Modbus client to read from.
+   * @param model Detected inverter model id (101/102/103).
    */
   async readInverter(client, model) {
     const blockDefs = import_sunspec_map.SUNSPEC_MAP.filter((d) => d.model === 101);
@@ -111,8 +116,8 @@ class SunSpecReader {
    * returning one {@link DecodedValue} per meter measurement value
    * (Req 3.2, 3.4, 3.6, 3.7, 3.8, 3.10).
    *
-   * @param client
-   * @param model
+   * @param client Connected read-only Modbus client to read from.
+   * @param model Detected meter model id (201/202/203/204).
    */
   async readMeter(client, model) {
     const blockDefs = import_sunspec_map.SUNSPEC_MAP.filter((d) => d.model === 201);

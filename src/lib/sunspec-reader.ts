@@ -45,6 +45,7 @@ export type MeterModelId = 201 | 202 | 203 | 204;
 
 /** A decoded, scale-resolved value together with its register definition. */
 export interface DecodedValue {
+    /** Register definition the value was decoded from. */
     def: SunSpecRegisterDef;
     /** Engineering value, or `null` when unavailable (NOT_IMPLEMENTED / skipped). */
     value: number | string | null;
@@ -52,13 +53,17 @@ export interface DecodedValue {
 
 /** A meter slot detected as present, with its 1-based slot index and model id (Req 9.1, 9.2). */
 export interface DetectedMeter {
+    /** 1-based meter slot index (1..3). */
     index: 1 | 2 | 3;
+    /** Detected SunSpec meter model id (201..204). */
     model: MeterModelId;
 }
 
 /** A battery slot detected as present, with its 1-based slot index and raw DID (Req 10.1). */
 export interface DetectedBattery {
+    /** 1-based battery slot index (1..2). */
     index: 1 | 2;
+    /** Raw device-address/DID word read from the slot's presence register. */
     did: number;
 }
 
@@ -68,7 +73,17 @@ export interface DetectedBattery {
  * because the reader defaults to a no-op logger when none is supplied.
  */
 export interface Logger {
+    /**
+     * Log a recoverable anomaly.
+     *
+     * @param msg Human-readable warning message.
+     */
     warn(msg: string): void;
+    /**
+     * Log diagnostic detail.
+     *
+     * @param msg Human-readable debug message.
+     */
     debug(msg: string): void;
 }
 
@@ -96,6 +111,7 @@ const NOOP_LOGGER: Logger = {
  */
 export const METER_DID_ADDRESS = METER_BASE + 67; // 40188 (base-0)
 
+/** Read-only SunSpec reader surface: model detection plus block/slot reads. */
 export interface ISunSpecReader {
     /** Read model id at inverter base and return 101/102/103, or null if absent (Req 3.3, 3.9). */
     detectInverterModel(client: IModbusClient): Promise<InverterModelId | null>;
@@ -138,9 +154,9 @@ const UINT16_SENTINEL = 0xffff;
  *
  * Pure function so it can be property-tested in isolation.
  *
- * @param startAddr
- * @param totalLen
- * @param maxPerRead
+ * @param startAddr Base-0 Modbus address where the span begins.
+ * @param totalLen Total number of registers to cover across all chunks.
+ * @param maxPerRead Maximum registers per emitted request; defaults to {@link MAX_REGISTERS_PER_READ}.
  */
 export function planReadChunks(
     startAddr: number,
@@ -166,6 +182,11 @@ export function planReadChunks(
 export class SunSpecReader implements ISunSpecReader {
     private readonly log: Logger;
 
+    /**
+     * Create a reader.
+     *
+     * @param log Logger for recoverable anomalies; defaults to a no-op logger.
+     */
     constructor(log: Logger = NOOP_LOGGER) {
         this.log = log;
     }
@@ -176,7 +197,7 @@ export class SunSpecReader implements ISunSpecReader {
      * being absent, which typically decodes to a sentinel or an unexpected id)
      * yields `null` and a warning (Req 3.3, 3.9).
      *
-     * @param client
+     * @param client Connected read-only Modbus client to read from.
      */
     async detectInverterModel(client: IModbusClient): Promise<InverterModelId | null> {
         const [raw] = await client.readHoldingRegisters(INVERTER_BASE, 1);
@@ -193,7 +214,7 @@ export class SunSpecReader implements ISunSpecReader {
      * (base-0 register 40188) and return it when it is 201/202/203/204. Any other
      * value yields `null` and a warning (Req 3.4, 3.9).
      *
-     * @param client
+     * @param client Connected read-only Modbus client to read from.
      */
     async detectMeterModel(client: IModbusClient): Promise<MeterModelId | null> {
         const [raw] = await client.readHoldingRegisters(METER_DID_ADDRESS, 1);
@@ -214,8 +235,8 @@ export class SunSpecReader implements ISunSpecReader {
      * and returns one {@link DecodedValue} per inverter measurement value
      * (Req 3.2, 3.6, 3.7, 3.8, 3.10).
      *
-     * @param client
-     * @param model
+     * @param client Connected read-only Modbus client to read from.
+     * @param model Detected inverter model id (101/102/103).
      */
     async readInverter(client: IModbusClient, model: InverterModelId): Promise<DecodedValue[]> {
         // The map stores a single inverter layout tagged with canonical model 101.
@@ -230,8 +251,8 @@ export class SunSpecReader implements ISunSpecReader {
      * returning one {@link DecodedValue} per meter measurement value
      * (Req 3.2, 3.4, 3.6, 3.7, 3.8, 3.10).
      *
-     * @param client
-     * @param model
+     * @param client Connected read-only Modbus client to read from.
+     * @param model Detected meter model id (201/202/203/204).
      */
     async readMeter(client: IModbusClient, model: MeterModelId): Promise<DecodedValue[]> {
         const blockDefs = SUNSPEC_MAP.filter(d => d.model === 201);
@@ -464,7 +485,7 @@ export class SunSpecReader implements ISunSpecReader {
         /**
          * Slice the assembled words for a def by its offset relative to the block base.
          *
-         * @param def
+         * @param def Register definition whose words to slice from the assembled block.
          */
         const wordsFor = (def: SunSpecRegisterDef): number[] => {
             const start = def.offset - minOffset;
@@ -526,7 +547,7 @@ export class SunSpecReader implements ISunSpecReader {
 /**
  * Extract a readable message from an unknown thrown value.
  *
- * @param err
+ * @param err The thrown value to describe.
  */
 function describeError(err: unknown): string {
     return err instanceof Error ? err.message : String(err);

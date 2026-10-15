@@ -79,7 +79,7 @@ describe('main.ts lifecycle logic (task 10.5)', () => {
          * new counter value and whether the repeated-failure error should fire
          * this cycle (which main emits only when the counter hits exactly MAX).
          *
-         * @param counter
+         * @param counter Current consecutive-failure count before this cycle.
          */
         function onFailure(counter: number): { counter: number; escalate: boolean } {
             const next = counter + 1;

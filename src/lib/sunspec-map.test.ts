@@ -76,7 +76,7 @@ const VALUE_MODELS = new Set([...INVERTER_MODELS, ...METER_MODELS]);
 /**
  * Assertions shared by every def in the map (Property 6 body).
  *
- * @param def
+ * @param def Register definition under test.
  */
 function assertMetadataValid(def: SunSpecRegisterDef): void {
     // Req 6.3: iobType is total over datatype: string -> 'string', else 'number'.

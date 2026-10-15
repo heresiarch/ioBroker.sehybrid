@@ -34,7 +34,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 /**
  * Read a repo-relative file; returns '' if the file is absent (artifact can't exist).
  *
- * @param relPath
+ * @param relPath Repo-relative path of the file to read.
  */
 function readRepoFile(relPath: string): string {
     const abs = path.join(REPO_ROOT, relPath);
@@ -146,7 +146,7 @@ const INVENTORY = buildInventory();
 /**
  * The bug condition oracle: an artifact is "bug" iff its probe matches the file.
  *
- * @param artifact
+ * @param artifact Artifact whose probe is tested against the file.
  */
 function isBugCondition(artifact: Artifact): boolean {
     return present(readRepoFile(artifact.file), artifact.probe);

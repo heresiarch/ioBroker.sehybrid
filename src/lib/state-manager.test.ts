@@ -78,7 +78,7 @@ class MockAdapter implements StateManagerAdapter {
     /**
      * Convenience: writes recorded for a given id.
      *
-     * @param id
+     * @param id State id to return recorded writes for.
      */
     writesFor(id: string): WriteRecord[] {
         return this.writes.filter(w => w.id === id);
@@ -92,7 +92,7 @@ class MockAdapter implements StateManagerAdapter {
 /**
  * Inverter models 101/102/103 -> 'inverter'; meter models 201–204 -> 'meter.1'.
  *
- * @param def
+ * @param def Register definition whose channel to resolve.
  */
 function channelForDef(def: SunSpecRegisterDef): ChannelPath {
     return def.model === 201 || def.model === 202 || def.model === 203 || def.model === 204 ? 'meter.1' : 'inverter';
@@ -212,7 +212,7 @@ describe('state-manager => StateManager', () => {
         /**
          * Find a representative def by name from the value defs.
          *
-         * @param name
+         * @param name Register name to look up.
          */
         function defByName(name: string): SunSpecRegisterDef {
             const def = allValueDefs.find(d => d.name === name);
@@ -529,8 +529,8 @@ describe('state-manager => StateManager', () => {
          * Read the created state common for a StorEdgeControlBlock id, asserting the
          * object exists.
          *
-         * @param adapter
-         * @param id
+         * @param adapter Mock adapter holding the created objects.
+         * @param id State id whose common to resolve.
          */
         function storEdgeCommon(adapter: MockAdapter, id: string): ioBroker.StateCommon {
             const obj = adapter.objects.get(id);
@@ -744,8 +744,8 @@ describe('state-manager => StateManager', () => {
         /**
          * Resolve the created state common for an id, asserting the object exists.
          *
-         * @param adapter
-         * @param id
+         * @param adapter Mock adapter holding the created objects.
+         * @param id State id whose common to resolve.
          */
         function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
             const obj = adapter.objects.get(id);
@@ -860,8 +860,8 @@ describe('state-manager => StateManager', () => {
         /**
          * Resolve the created state common for an id, asserting the object exists.
          *
-         * @param adapter
-         * @param id
+         * @param adapter Mock adapter holding the created objects.
+         * @param id State id whose common to resolve.
          */
         function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
             const obj = adapter.objects.get(id);
@@ -1194,8 +1194,8 @@ describe('state-manager => StateManager', () => {
         /**
          * Resolve the created state common for an id, asserting the object exists.
          *
-         * @param adapter
-         * @param id
+         * @param adapter Mock adapter holding the created objects.
+         * @param id State id whose common to resolve.
          */
         function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
             const obj = adapter.objects.get(id);
@@ -1310,8 +1310,8 @@ describe('state-manager => StateManager', () => {
         /**
          * Resolve the created state common for an id, asserting the object exists.
          *
-         * @param adapter
-         * @param id
+         * @param adapter Mock adapter holding the created objects.
+         * @param id State id whose common to resolve.
          */
         function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
             const obj = adapter.objects.get(id);

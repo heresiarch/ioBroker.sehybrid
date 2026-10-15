@@ -31,8 +31,8 @@ const SENTINEL_UINT32 = 0xffffffff;
 /**
  * Combine two big-endian 16-bit words (hi first) into an unsigned 32-bit value.
  *
- * @param hi
- * @param lo
+ * @param hi High (most-significant) 16-bit word.
+ * @param lo Low (least-significant) 16-bit word.
  */
 function toUint32(hi: number, lo: number): number {
     // `>>> 0` forces the result into the unsigned 32-bit range.
@@ -42,7 +42,7 @@ function toUint32(hi: number, lo: number): number {
 /**
  * Interpret an unsigned 16-bit value as two's-complement signed int16.
  *
- * @param u
+ * @param u Unsigned 16-bit value to reinterpret as signed.
  */
 function asInt16(u: number): number {
     const v = u & 0xffff;
@@ -52,7 +52,7 @@ function asInt16(u: number): number {
 /**
  * Interpret an unsigned 32-bit value as two's-complement signed int32.
  *
- * @param u
+ * @param u Unsigned 32-bit value to reinterpret as signed.
  */
 function asInt32(u: number): number {
     // `| 0` reinterprets the low 32 bits as signed.
@@ -64,8 +64,8 @@ function asInt32(u: number): number {
  *
  * `string` has no numeric sentinel and therefore never reports NOT_IMPLEMENTED.
  *
- * @param words
- * @param datatype
+ * @param words Raw big-endian register words for the value.
+ * @param datatype SunSpec datatype that determines the sentinel to compare against.
  */
 export function isNotImplemented(words: readonly number[], datatype: SunSpecDatatype): boolean {
     switch (datatype) {
@@ -108,8 +108,8 @@ export function isNotImplemented(words: readonly number[], datatype: SunSpecData
  * datatype (Req 3.8). For `string`, an all-zero / empty field decodes to the empty
  * string, never `null`.
  *
- * @param words
- * @param datatype
+ * @param words Raw big-endian register words to decode.
+ * @param datatype SunSpec datatype that determines how the words are interpreted.
  */
 export function decodeRegisters(words: readonly number[], datatype: SunSpecDatatype): number | string | null {
     if (isNotImplemented(words, datatype)) {
@@ -175,7 +175,7 @@ export function decodeRegisters(words: readonly number[], datatype: SunSpecDatat
  * (offset 2), so the encoder writes big-endian bytes and returns `[low, high]`.
  * Verified: `encodeFloat32le(5000)` equals `[0x4000, 0x459c]` (Req 5.1, 5.2, 5.3, 5.4).
  *
- * @param value
+ * @param value Float value to encode into two little-endian-word registers.
  */
 export function encodeFloat32le(value: number): [number, number] {
     const buf = Buffer.allocUnsafe(4);
@@ -194,7 +194,7 @@ export function encodeFloat32le(value: number): [number, number] {
  * Used for the remote-control command timeout register `0xE00B` (uint32le, FC16).
  * The value is coerced to the unsigned 32-bit range before splitting.
  *
- * @param value
+ * @param value Integer value to encode; coerced to the unsigned 32-bit range.
  */
 export function encodeUint32le(value: number): [number, number] {
     const v = value >>> 0; // coerce to unsigned 32-bit
@@ -207,7 +207,7 @@ export function encodeUint32le(value: number): [number, number] {
  * Decode packed big-endian byte pairs into an ASCII/latin1 string, trimming trailing
  * NUL and space padding (Req 3.7).
  *
- * @param words
+ * @param words Register words holding packed big-endian byte pairs.
  */
 function decodeString(words: readonly number[]): string {
     const buf = Buffer.allocUnsafe(words.length * 2);
@@ -228,8 +228,8 @@ function decodeString(words: readonly number[]): string {
  * Throws when `sf` is not an integer in `[-10, 10]` so callers can skip the value
  * and log a warning (Req 3.10).
  *
- * @param raw
- * @param sf
+ * @param raw Raw decoded value to scale.
+ * @param sf SunSpec scale factor exponent; must be an integer in `[-10, 10]`.
  */
 export function applyScaleFactor(raw: number, sf: number): number {
     if (!Number.isInteger(sf) || sf < -10 || sf > 10) {

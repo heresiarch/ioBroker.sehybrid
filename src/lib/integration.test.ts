@@ -92,7 +92,7 @@ class RegisterStore {
     /**
      * Number of client writes that have targeted `addr` (0 if never written).
      *
-     * @param addr
+     * @param addr Register address to look up the write count for.
      */
     writeCount(addr: number): number {
         return this.writeCounts.get(addr) ?? 0;
@@ -101,8 +101,8 @@ class RegisterStore {
     /**
      * Write a big-endian uint32 across two consecutive words (hi first).
      *
-     * @param addr
-     * @param value
+     * @param addr Address of the first (high) word.
+     * @param value Unsigned 32-bit value to store.
      */
     setU32(addr: number, value: number): void {
         this.set(addr, (value >>> 16) & 0xffff);
@@ -113,8 +113,8 @@ class RegisterStore {
      * Write an IEEE-754 float32 in little-endian WORD order across two words
      * (matches the `float32le` decoder: words[0] is the LOW word, words[1] the HIGH).
      *
-     * @param addr
-     * @param value
+     * @param addr Address of the first (low) word.
+     * @param value Float value to store.
      */
     setFloat32le(addr: number, value: number): void {
         const buf = Buffer.allocUnsafe(4);
@@ -132,8 +132,8 @@ class RegisterStore {
      * exactly the word order `encodeUint32le` produces. Used to seed
      * `remoteControlCommandTimeout` (0xE00B).
      *
-     * @param addr
-     * @param value
+     * @param addr Address of the first (low) word.
+     * @param value Unsigned 32-bit value to store.
      */
     setUint32le(addr: number, value: number): void {
         const v = value >>> 0;
@@ -145,8 +145,8 @@ class RegisterStore {
      * Write a uint64 across four consecutive words, big-endian word order (hi..lo),
      * matching the `uint64` decoder. Exact for values up to 2^53.
      *
-     * @param addr
-     * @param value
+     * @param addr Address of the first (highest) word.
+     * @param value Unsigned 64-bit value to store (exact up to 2^53).
      */
     setU64(addr: number, value: number): void {
         const hi = Math.floor(value / 4294967296);
@@ -161,8 +161,8 @@ class RegisterStore {
      * Write a uint64 across four words in little-endian WORD order (lowest word
      * first), matching the `uint64le` decoder used by the battery lifetime counters.
      *
-     * @param addr
-     * @param value
+     * @param addr Address of the first (lowest) word.
+     * @param value Unsigned 64-bit value to store (exact up to 2^53).
      */
     setU64le(addr: number, value: number): void {
         const hi = Math.floor(value / 4294967296);
@@ -176,9 +176,9 @@ class RegisterStore {
     /**
      * Write an ASCII string packed big-endian into `wordLen` words (NUL padded).
      *
-     * @param addr
-     * @param text
-     * @param wordLen
+     * @param addr Address of the first word.
+     * @param text ASCII/latin1 text to pack.
+     * @param wordLen Number of 16-bit words to fill (NUL padded).
      */
     setString(addr: number, text: string, wordLen: number): void {
         const buf = Buffer.alloc(wordLen * 2, 0);
@@ -281,10 +281,10 @@ function seedDevice(): SeededDevice {
  * @param store    backing store
  * @param base     absolute base-0 address of the battery block (getBatteryBase(slot))
  * @param concrete concrete values for the spot-checked fields
- * @param concrete.instantaneousPower
- * @param concrete.lifetimeExportEnergy
- * @param concrete.lifetimeImportEnergy
- * @param concrete.status
+ * @param concrete.instantaneousPower Instantaneous battery power to seed (float32le).
+ * @param concrete.lifetimeExportEnergy Lifetime exported energy to seed (uint64le).
+ * @param concrete.lifetimeImportEnergy Lifetime imported energy to seed (uint64le).
+ * @param concrete.status Battery status code to seed.
  */
 function seedBatteryBlock(
     store: RegisterStore,
@@ -330,7 +330,7 @@ function seedBatteryBlock(
  * These offsets come straight from SUNSPEC_MAP (mirrored here to avoid exporting
  * the scale rows), which is fine for a test fixture.
  *
- * @param block
+ * @param block Which block's scale rows to return — `'inverter'` or `'meter'`.
  */
 function scaleRegistersFor(block: 'inverter' | 'meter'): number[] {
     if (block === 'inverter') {
@@ -409,8 +409,8 @@ const BATTERY_BATCH_WINDOWS: Array<{ start: number; end: number }> = [getBattery
  * inside the battery address range but is not contained in one batch window is rejected;
  * single-word probes and all non-battery reads always succeed.
  *
- * @param addr
- * @param length
+ * @param addr Start address of the read window.
+ * @param length Number of registers in the read window.
  */
 function rejectsBatteryRead(addr: number, length: number): boolean {
     if (length <= 1) {
@@ -487,7 +487,7 @@ function startServer(store: RegisterStore, port: number, delayMs = 0): Promise<M
 /**
  * Close a server and wait for the callback (safe to call when already closed).
  *
- * @param server
+ * @param server Mock server to close, or `undefined` for a no-op.
  */
 function closeServer(server: MockServer | undefined): Promise<void> {
     return new Promise(resolve => {

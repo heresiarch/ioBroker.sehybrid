@@ -46,6 +46,7 @@ export interface SunSpecRegisterDef {
     offset: number;
     /** Number of 16-bit registers occupied by this value. */
     length: number;
+    /** SunSpec datatype used to decode the raw registers. */
     datatype: SunSpecDatatype;
     /** Name of the `sunssf` register that scales this value, if any (Req 3.6). */
     scaleFactorRef?: string;
@@ -1063,7 +1064,7 @@ export const SUNSPEC_MAP: SunSpecRegisterDef[] = [
  * Absolute base-0 Modbus register address for a def = block base + offset.
  * Common block -> COMMON_BASE, inverter models -> INVERTER_BASE, meter models -> METER_BASE.
  *
- * @param def
+ * @param def Register definition whose absolute base-0 address to compute.
  */
 export function getRegisterAddress(def: SunSpecRegisterDef): number {
     if (def.model === 'common') {
@@ -1113,7 +1114,7 @@ export function getValueDefs(map: SunSpecRegisterDef[] = SUNSPEC_MAP): SunSpecRe
 /**
  * Non-scale value defs for the numeric inverter models (101/102/103).
  *
- * @param map
+ * @param map Register map to filter; defaults to the module `SUNSPEC_MAP`.
  */
 export function getInverterValueDefs(map: SunSpecRegisterDef[] = SUNSPEC_MAP): SunSpecRegisterDef[] {
     return getValueDefs(map).filter(def => INVERTER_MODELS.has(def.model));
@@ -1122,7 +1123,7 @@ export function getInverterValueDefs(map: SunSpecRegisterDef[] = SUNSPEC_MAP): S
 /**
  * Non-scale value defs for the numeric meter models (201/202/203/204).
  *
- * @param map
+ * @param map Register map to filter; defaults to the module `SUNSPEC_MAP`.
  */
 export function getMeterValueDefs(map: SunSpecRegisterDef[] = SUNSPEC_MAP): SunSpecRegisterDef[] {
     return getValueDefs(map).filter(def => METER_MODELS.has(def.model));
@@ -1508,6 +1509,7 @@ export function getBatteryValueDefs(map: SunSpecRegisterDef[] = BATTERY_MAP): Su
 // Segments are expressed as WORD offsets relative to BATTERY_TEMPLATE_BASE (0xE100),
 // matching the def offsets in BATTERY_MAP. The reader reads each segment as its own
 // contiguous request and reassembles the words by absolute offset.
+/** One contiguous battery read batch, as a word offset and length from the block base. */
 export interface BatterySegment {
     /** Word offset of the segment start, relative to the battery block base (0xE100). */
     offset: number;

@@ -101,7 +101,7 @@ class RecordingClient implements IModbusClient {
     /**
      * An array of `length` words: first element `firstWord`, the rest zero.
      *
-     * @param length
+     * @param length Number of words in the returned array.
      */
     private cannedData(length: number): number[] {
         const data = new Array<number>(Math.max(length, 0)).fill(0);

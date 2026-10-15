@@ -176,7 +176,7 @@ describe('Preservation (Property 2): retained field-validation gate unchanged (R
 /**
  * Stable, order-preserving projection of a SunSpec value-table row.
  *
- * @param def
+ * @param def Register definition to project into a comparable row.
  */
 function projectSunSpecRow(def: SunSpecRegisterDef): Record<string, unknown> {
     return {

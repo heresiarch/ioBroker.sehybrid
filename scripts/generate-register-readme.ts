@@ -22,17 +22,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { formatAddress, formatRange } from '../src/lib/register-format';
+import { STOREDGE_CONTROL_REGISTERS, type StorEdgeControlRegisterDef } from '../src/lib/storedge-control-map';
 import {
+    getBatteryBase,
+    getBatteryValueDefs,
+    getDeviceRegisterAddress,
     getInverterValueDefs,
     getMeterValueDefs,
-    getBatteryValueDefs,
     getRegisterAddress,
-    getBatteryBase,
-    getDeviceRegisterAddress,
     type SunSpecRegisterDef,
 } from '../src/lib/sunspec-map';
-import { STOREDGE_CONTROL_REGISTERS, type StorEdgeControlRegisterDef } from '../src/lib/storedge-control-map';
-import { formatAddress, formatRange } from '../src/lib/register-format';
 
 /** Absolute path to the repository `README.md`. */
 export const README_PATH = path.resolve(__dirname, '..', 'README.md');
@@ -158,6 +158,11 @@ export function buildGeneratedBlocks(): Record<GeneratedBlockId, string> {
 
 /** Thrown when a managed block's marker pair is missing or malformed in the README. */
 export class MarkerError extends Error {
+    /**
+     * Create a MarkerError.
+     *
+     * @param message Human-readable description of the marker problem.
+     */
     constructor(message: string) {
         super(message);
         this.name = 'MarkerError';
@@ -248,6 +253,7 @@ function countOccurrences(haystack: string, needle: string): number {
 
 /** Result of a sync check: whether the README is in sync and which blocks drifted. */
 export interface CheckResult {
+    /** True when the README matches freshly generated output. */
     inSync: boolean;
     /** Human-readable summary of the drift, empty when in sync. */
     summary: string;

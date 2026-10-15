@@ -31,11 +31,13 @@ export const DEFAULT_TIMEOUT_MS = 10000;
 /** Maximum number of registers a single Modbus read request may cover (Req 3.2). */
 export const MAX_REGISTERS_PER_READ = 125;
 
+/** Per-call options for the read operations FC03/FC04. */
 export interface ModbusReadOptions {
     /** Overall timeout for the operation in ms; defaults to {@link DEFAULT_TIMEOUT_MS} (Req 3.5). */
     timeoutMs?: number;
 }
 
+/** Per-call options for the write operations FC06/FC16. */
 export interface ModbusWriteOptions {
     /** Overall timeout for the operation in ms; defaults to {@link DEFAULT_TIMEOUT_MS} (Req 2.6). */
     timeoutMs?: number;
@@ -75,8 +77,8 @@ export interface IModbusClient {
  * the timer handle so it can be cleared once the raced operation settles, preventing
  * a dangling timer from keeping the process alive.
  *
- * @param ms
- * @param message
+ * @param ms Delay in milliseconds before the returned promise rejects.
+ * @param message Error message used for the rejection when the timer fires.
  */
 function rejectAfter(ms: number, message: string): { promise: Promise<never>; cancel: () => void } {
     // Uses the global timer explicitly (via globalThis) rather than an adapter-managed
@@ -102,6 +104,7 @@ export class ModbusClient implements IModbusClient {
     /** Our own connected flag, combined with the library's `isOpen` in {@link isConnected}. */
     private connected = false;
 
+    /** Create a client holding a fresh, unconnected `ModbusRTU` instance. */
     constructor() {
         this.client = new ModbusRTU();
     }
@@ -114,10 +117,10 @@ export class ModbusClient implements IModbusClient {
      * additionally raced against a rejecting timeout. The same timeout is applied
      * via `setTimeout` so subsequent read requests inherit the deadline (Req 3.5).
      *
-     * @param host
-     * @param port
-     * @param unitId
-     * @param timeoutMs
+     * @param host Hostname or IP address of the Modbus TCP inverter.
+     * @param port TCP port the inverter's Modbus server listens on.
+     * @param unitId Modbus unit (slave) id to address on the connection.
+     * @param timeoutMs Connect and subsequent request timeout in ms; defaults to {@link DEFAULT_TIMEOUT_MS}.
      */
     async connect(host: string, port: number, unitId: number, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<void> {
         const timeout = rejectAfter(timeoutMs, `Modbus connect to ${host}:${port} timed out after ${timeoutMs} ms`);
@@ -143,9 +146,9 @@ export class ModbusClient implements IModbusClient {
     /**
      * FC03 — read holding registers.
      *
-     * @param address
-     * @param length
-     * @param opts
+     * @param address Starting Modbus register address to read from.
+     * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+     * @param opts Optional read options, e.g. a per-call timeout.
      */
     async readHoldingRegisters(address: number, length: number, opts?: ModbusReadOptions): Promise<number[]> {
         return this.read('readHoldingRegisters', address, length, opts);
@@ -154,9 +157,9 @@ export class ModbusClient implements IModbusClient {
     /**
      * FC04 — read input registers.
      *
-     * @param address
-     * @param length
-     * @param opts
+     * @param address Starting Modbus register address to read from.
+     * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+     * @param opts Optional read options, e.g. a per-call timeout.
      */
     async readInputRegisters(address: number, length: number, opts?: ModbusReadOptions): Promise<number[]> {
         return this.read('readInputRegisters', address, length, opts);
@@ -166,9 +169,9 @@ export class ModbusClient implements IModbusClient {
      * FC06 — write a single uint16 value to a holding register (Req 2.1). The value
      * must be an integer in `[0, 0xFFFF]`. Rejects when not connected (Req 2.5).
      *
-     * @param address
-     * @param value
-     * @param opts
+     * @param address Holding register address to write.
+     * @param value uint16 value to write; must be an integer in `[0, 0xFFFF]`.
+     * @param opts Optional write options, e.g. a per-call timeout.
      */
     async writeSingleRegister(address: number, value: number, opts?: ModbusWriteOptions): Promise<void> {
         if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
@@ -182,9 +185,9 @@ export class ModbusClient implements IModbusClient {
      * The array must be non-empty and every word an integer in `[0, 0xFFFF]`.
      * Rejects when not connected (Req 2.5).
      *
-     * @param address
-     * @param values
-     * @param opts
+     * @param address Starting holding register address to write.
+     * @param values Non-empty uint16 word array; each word an integer in `[0, 0xFFFF]`.
+     * @param opts Optional write options, e.g. a per-call timeout.
      */
     async writeMultipleRegisters(address: number, values: number[], opts?: ModbusWriteOptions): Promise<void> {
         if (!Array.isArray(values) || values.length < 1) {
@@ -234,10 +237,10 @@ export class ModbusClient implements IModbusClient {
      * connection, and returns the numeric register data. Rejects with a descriptive
      * Error rather than throwing synchronously.
      *
-     * @param fn
-     * @param address
-     * @param length
-     * @param opts
+     * @param fn Library read method to invoke — FC03 or FC04.
+     * @param address Starting Modbus register address to read from.
+     * @param length Number of consecutive registers to read (max {@link MAX_REGISTERS_PER_READ}).
+     * @param opts Optional read options, e.g. a per-call timeout.
      */
     private async read(
         fn: 'readHoldingRegisters' | 'readInputRegisters',
@@ -278,10 +281,10 @@ export class ModbusClient implements IModbusClient {
      * call against a rejecting timeout so a hung write cannot exceed the deadline.
      * Rejects with a descriptive Error rather than throwing synchronously.
      *
-     * @param fn
-     * @param address
-     * @param payload
-     * @param opts
+     * @param fn Library write method to invoke — FC06 (single) or FC16 (multiple).
+     * @param address Starting holding register address to write.
+     * @param payload The uint16 value (FC06) or uint16 word array (FC16) to write.
+     * @param opts Optional write options, e.g. a per-call timeout.
      */
     private async write(
         fn: 'writeRegister' | 'writeRegisters',
@@ -316,7 +319,7 @@ export class ModbusClient implements IModbusClient {
 /**
  * Extract a readable message from an unknown thrown value.
  *
- * @param err
+ * @param err The thrown value to describe.
  */
 function describeError(err: unknown): string {
     if (err instanceof Error) {

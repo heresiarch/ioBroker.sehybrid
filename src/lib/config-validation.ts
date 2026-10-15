@@ -40,7 +40,7 @@ export interface ConfigValidationResult {
  *
  * Any input violating a bound is rejected with an error naming the offending field.
  *
- * @param cfg
+ * @param cfg Partial adapter configuration to validate.
  */
 export function validateConfig(cfg: Partial<ioBroker.AdapterConfig>): ConfigValidationResult {
     const errors: Partial<Record<ConfigField, string>> = {};

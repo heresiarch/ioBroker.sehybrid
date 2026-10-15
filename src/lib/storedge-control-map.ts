@@ -243,7 +243,7 @@ export const STOREDGE_CONTROL_REGISTERS: readonly StorEdgeControlRegisterDef[] =
  * Resolve the StorEdgeControlBlock register def for a given state-id leaf, or
  * `undefined` if the name does not match any of the nine registers.
  *
- * @param name
+ * @param name StorEdge control register name to look up.
  */
 export function findStorEdgeControlDef(name: string): StorEdgeControlRegisterDef | undefined {
     return STOREDGE_CONTROL_REGISTERS.find(def => def.name === name);
