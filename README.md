@@ -269,6 +269,8 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* jsonConfig Migration for Admin UI 
 ### 1.0.21 (2026-10-15)
 * fix GH workflow lint errors
 
