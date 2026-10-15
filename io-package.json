@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.18",
+    "version": "1.0.19",
     "news": {
+      "1.0.19": {
+        "en": "fix vite watch config\nfix reactive power roles\nfix energy state roles",
+        "de": "Fix Vite Watch Config\nBlindleistungsrollen\nEnergiezustandsregeln",
+        "ru": "исправить конфигурацию часов vite\nисправить роли реактивной мощности\nзафиксировать роли энергетических состояний",
+        "pt": "fix vite watch config\nfixar funções reativas\nfixar funções de energia",
+        "nl": "de configuratie van de vite watch repareren\nrollen voor reactief vermogen repareren\nrollen in de energietoestand vastleggen",
+        "fr": "fix vite watch config\nfixer les rôles réactifs\nrôles énergétiques fixes",
+        "it": "fix vite watch config\nruoli reattivi fissi\nruoli energetici fissi",
+        "es": "fix vite watch config\nfijar roles de reactiva\nfijar roles de estado",
+        "pl": "fix vite watch config\nustalić role mocy biernej\nustalić role stanu energii",
+        "uk": "виправлення конфігурації годинника vite\nфіксувати ролі реактивної потужності\nфіксувати ролі енергетичного стану",
+        "zh-cn": "修复 vite 手表配置\n修复无功功率角色\n修复能量状态角色"
+      },
       "1.0.18": {
         "en": "reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control\ndocument the `remoteControlCommandMode` null behavior in the README\nfix the `test:ts` glob so the main-module tests actually run",
         "de": "Reflect live `RemoteControlCommandMode`: Sentinel `0xFFFF` NOT_IMPLEMENTED bei jedem Abruf als `Null` durchschreiben, anstatt den alten Modus beizubehalten, wenn der Inverter nicht ferngesteuert ist\nNull-Verhalten von `RemoteControlCommandMode` in der README\nFix den `test:ts`-Globus, damit die Hauptmodultests laufen",
@@ -80,19 +93,6 @@
         "pl": "drobne poprawki",
         "uk": "незначні виправлення",
         "zh-cn": "小修复"
-      },
-      "1.0.11": {
-        "en": "fixed doc",
-        "de": "Fester Dok",
-        "ru": "фиксированный документ",
-        "pt": "doc fixo",
-        "nl": "vast document",
-        "fr": "doc fixe",
-        "it": "doc fisso",
-        "es": "doc fijo",
-        "pl": "naprawiony dokument",
-        "uk": "фіксований документ",
-        "zh-cn": "固定文档"
       }
     },
     "titleLang": {
