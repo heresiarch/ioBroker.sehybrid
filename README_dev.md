@@ -5,19 +5,19 @@ Build, test and release documentation for the **sehybrid** adapter. For user-fac
 
 ## Project layout
 
-The adapter is split into two independent parts:
+The adapter is split into two parts:
 
 - **Backend** (the adapter itself) — TypeScript in `src/`, compiled with `build-adapter ts` into `build/`.
-- **Admin UI** (the configuration page) — a self-contained [Vite](https://vitejs.dev/) + React + TypeScript
-  project in `src-admin/`. It is built and copied into `admin/` (`admin/index.html`, `admin/assets/*`) by the root-level `tasks.js` orchestrator.
+- **Admin UI** (the configuration page) — a declarative [jsonConfig](https://github.com/ioBroker/ioBroker.admin/tree/master/packages/jsonConfig)
+  dialog in `admin/jsonConfig.json`, with per-language labels/error texts in `admin/i18n/<lang>.json`. There is
+  no React/Vite/TypeScript application and no build step for the admin UI — the ioBroker admin renders the
+  dialog directly from the committed JSON.
 
-The admin UI has its own `package.json` and `node_modules` and is installed/linted separately from the
-backend. The root `postinstall` (`scripts/postinstall.js`) installs the admin dependencies automatically after
-a root install; it is a no-op when the adapter is installed as a published package. `npm run lint` and
-`npm run check` cover both parts.
+`npm run lint` and `npm run check` cover the backend only; the admin UI is plain JSON and needs no compilation.
 
-> `build/` and `admin/` are generated output and are **not** committed to git. They are produced by
-> `npm run build` and included in the published npm package via the `files` field in `package.json`.
+> `build/` is generated output and is **not** committed to git. It is produced by `npm run build`. The admin
+> UI source (`admin/jsonConfig.json`, `admin/i18n/*.json`, `admin/sehybrid.png`) is committed directly. Both
+> are included in the published npm package via the `files` field in `package.json`.
 
 ## Prerequisites
 
@@ -26,13 +26,13 @@ a root install; it is a no-op when the adapter is installed as a published packa
 
 ## Getting started
 
-Install dependencies (installs the backend and, via `postinstall`, the admin UI):
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-Build everything (backend + admin UI):
+Build the backend (the admin UI needs no build step):
 
 ```bash
 npm run build
@@ -50,11 +50,8 @@ npm run dev-server:watch  # backend work: runs the adapter and restarts it on sr
 Use `dev-server:watch` when changing backend code in `src/` so the recompiled adapter restarts automatically.
 Plain `dev-server` only starts the admin (lighter when working on the admin page).
 
-> The admin UI is **not** rebuilt automatically by `dev-server`. The admin build has a single Vite config
-> (`src-admin/vite.config.ts`), which writes to `src-admin/build` and is copied into `admin/` only by the
-> production pipeline. When you change `src-admin/`, rebuild the admin bundle with `npm run build:react` (or a
-> full `npm run build`) and then refresh the browser. This keeps the committed `admin/` bundle deterministic —
-> there is no second (watch) build path that would overwrite it with a different layout.
+> The admin UI needs no build step. After editing `admin/jsonConfig.json` or `admin/i18n/*.json`, push the
+> changes with `npm run dev-server:upload` and refresh the browser — there is nothing to rebuild.
 
 > The `dev-server` script runs with `--noBrowserSync` on purpose. BrowserSync (auto browser reload) interferes
 > with the admin socket.io connection here, causing the UI to reconnect endlessly. Without it the admin
@@ -67,30 +64,29 @@ Run with `npm run <name>`.
 
 | Script | Description |
 |--------|-------------|
-| `build` | Build the backend (TypeScript) and the admin UI (Vite). |
+| `build` | Build the backend (TypeScript) into `build/`. |
 | `build:ts` | Build only the backend into `build/`. |
-| `build:react` | Build only the admin UI and copy it into `admin/`. |
 | `watch:ts` | Rebuild the backend on change. |
 | `dev-server` | Run the ioBroker admin for admin-UI development (adapter not started, no BrowserSync). |
 | `dev-server:sync` | Same as `dev-server`, with BrowserSync auto-reload. |
 | `dev-server:watch` | Run ioBroker **and** the adapter in watch mode (adapter restarts on `src/` changes). |
-| `dev-server:upload` | Upload the adapter (needed after `io-package.json` changes). |
+| `dev-server:upload` | Upload the adapter (needed after `io-package.json`, `admin/jsonConfig.json`, or `admin/i18n/*.json` changes). |
 | `test:ts` | Run the `*.test.ts` unit tests. |
 | `test:package` | Validate `package.json` and `io-package.json`. |
 | `test:integration` | Test adapter startup against a real ioBroker instance. |
 | `test` | Run unit tests and package validation. |
-| `check` | Type-check the backend and the admin UI (no compilation). |
-| `lint` | Lint the backend and the admin UI with ESLint. |
+| `check` | Type-check the backend (no compilation). |
+| `lint` | Lint the backend with ESLint. |
 | `translate` | Translate admin texts, see [`@iobroker/adapter-dev`](https://github.com/ioBroker/adapter-dev#manage-translations). |
 | `release` | Create a new release, see [`@alcalzone/release-script`](https://github.com/AlCalzone/release-script#usage). |
 
 ## Compilation config
 
 The backend is compiled with [esbuild](https://esbuild.github.io/) via `@iobroker/adapter-dev`; adjust settings
-in `tsconfig.json` / `tsconfig.build.json`. The admin UI is bundled with [Vite](https://vitejs.dev/): the single
-config lives in `src-admin/vite.config.ts`. It writes to `src-admin/build`, which `tasks.js` copies into
-`admin/`. There is no separate watch build config, so the committed `admin/` bundle is produced only by this
-one path.
+in `tsconfig.json` / `tsconfig.build.json`. The admin UI has no compilation step: it is the declarative
+`admin/jsonConfig.json` plus the `admin/i18n/<lang>.json` translation files, which the ioBroker admin renders
+directly. To change the configuration dialog, edit those JSON files directly and push them with
+`npm run dev-server:upload`.
 
 ## Testing
 

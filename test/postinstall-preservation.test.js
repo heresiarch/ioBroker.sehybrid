@@ -13,16 +13,12 @@
 // (unfixed-code) behavior that must be preserved by the fix. They are
 // EXPECTED TO PASS on unfixed code, establishing the baseline to protect.
 //
-// They cover two non-buggy behaviors:
+// It covers one non-buggy behavior that still holds after the jsonConfig migration:
 //   1. The `files` allowlist in package.json ships no `src-admin/` content
 //      (the published tarball excludes the source project). Requirement 3.3.
-//   2. The `tasks.js` `installNpmLocal()` bootstrap decision runs `npm install`
-//      in `src-admin/` only when `src-admin/node_modules` is absent.
-//      Requirement 3.1.
 //
-// Validates: Requirements 3.1, 3.2, 3.3, 3.4
+// Validates: Requirements 3.3
 
-const fs = require('fs');
 const path = require('path');
 const { expect } = require('chai');
 const fc = require('fast-check');
@@ -59,24 +55,6 @@ function isShippedBy(filesAllowlist, candidate) {
         // Glob match (brace expansion + globstar), matching npm's minimatch usage.
         return minimatch(normalized, pattern, { dot: false });
     });
-}
-
-/**
- * Model the tasks.js installNpmLocal() bootstrap decision.
- *
- * Source of truth (tasks.js):
- *   function installNpmLocal() {
- *       if (fs.existsSync(`${SRC}/node_modules`)) { return Promise.resolve(); }
- *       return npmInstall(...);
- *   }
- *
- * i.e. it runs npm install ONLY when src-admin/node_modules is absent.
- *
- * @param {boolean} nodeModulesPresent - whether src-admin/node_modules exists
- * @returns {boolean} true if npm install would run
- */
-function bootstrapRunsInstall(nodeModulesPresent) {
-    return !nodeModulesPresent;
 }
 
 describe('Preservation: files allowlist excludes src-admin (remove-postinstall-npm)', () => {
@@ -131,8 +109,9 @@ describe('Preservation: files allowlist excludes src-admin (remove-postinstall-n
         const shippedArb = fc.constantFrom(
             'build/main.js',
             'build/lib/adapter.js',
-            'admin/index.html',
-            'admin/assets/index.js',
+            'admin/jsonConfig.json',
+            'admin/i18n/en.json',
+            'admin/sehybrid.png',
             'io-package.json',
             'LICENSE',
         );
@@ -145,41 +124,6 @@ describe('Preservation: files allowlist excludes src-admin (remove-postinstall-n
                 ).to.equal(true);
             }),
             { numRuns: 60 },
-        );
-    });
-});
-
-describe('Preservation: installNpmLocal() bootstrap decision (remove-postinstall-npm)', () => {
-    it('installNpmLocal guards on src-admin/node_modules via fs.existsSync', () => {
-        // Pin the observed source-level decision so the fix (which does NOT touch
-        // tasks.js) cannot silently change the build bootstrap behavior.
-        const source = fs.readFileSync(path.join(rootDir, 'tasks.js'), 'utf8');
-        const fnMatch = source.match(/function installNpmLocal\(\)\s*\{[\s\S]*?\n\}/);
-        expect(fnMatch, 'installNpmLocal() should exist in tasks.js').to.not.equal(null);
-        const fnSource = fnMatch[0];
-        expect(fnSource).to.match(/existsSync\([^)]*node_modules[^)]*\)/);
-        expect(fnSource).to.match(/npmInstall\(/);
-    });
-
-    it('runs npm install only when src-admin/node_modules is absent (across generated states)', () => {
-        fc.assert(
-            fc.property(fc.boolean(), (nodeModulesPresent) => {
-                const runsInstall = bootstrapRunsInstall(nodeModulesPresent);
-                // Decision must be exactly: install iff node_modules is absent.
-                expect(runsInstall).to.equal(!nodeModulesPresent);
-            }),
-            { numRuns: 50 },
-        );
-    });
-
-    it('bootstrap decision is deterministic for a given node_modules state', () => {
-        fc.assert(
-            fc.property(fc.boolean(), (nodeModulesPresent) => {
-                expect(bootstrapRunsInstall(nodeModulesPresent)).to.equal(
-                    bootstrapRunsInstall(nodeModulesPresent),
-                );
-            }),
-            { numRuns: 20 },
         );
     });
 });

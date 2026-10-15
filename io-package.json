@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "news": {
+      "1.0.22": {
+        "en": "Migrated the Admin UI to declarative jsonConfig; removed the React/Vite admin toolchain",
+        "de": "Admin-UI auf deklaratives jsonConfig umgestellt; React/Vite-Admin-Toolchain entfernt",
+        "ru": "Пользовательский интерфейс администратора переведён на декларативный jsonConfig; удалён инструментарий администратора React/Vite",
+        "pt": "Interface de administração migrada para jsonConfig declarativo; removida a toolchain de administração React/Vite",
+        "nl": "Admin-UI gemigreerd naar declaratieve jsonConfig; de React/Vite-admin-toolchain verwijderd",
+        "fr": "Interface d'administration migrée vers jsonConfig déclaratif ; suppression de la chaîne d'outils d'administration React/Vite",
+        "it": "Interfaccia di amministrazione migrata a jsonConfig dichiarativo; rimossa la toolchain di amministrazione React/Vite",
+        "es": "Interfaz de administración migrada a jsonConfig declarativo; se eliminó la cadena de herramientas de administración React/Vite",
+        "pl": "Interfejs administracyjny przeniesiony na deklaratywny jsonConfig; usunięto narzędzia administracyjne React/Vite",
+        "uk": "Інтерфейс адміністратора переведено на декларативний jsonConfig; вилучено інструментарій адміністратора React/Vite",
+        "zh-cn": "将管理界面迁移到声明式 jsonConfig；移除了 React/Vite 管理工具链"
+      },
       "1.0.21": {
         "en": "fix GH workflow lint errors",
         "de": "Fix GH Workflow-Lint-Fehler",
@@ -149,7 +162,7 @@
     "connectionType": "local",
     "dataSource": "poll",
     "adminUI": {
-      "config": "html"
+      "config": "json"
     },
     "eraseOnUpload": true,
     "dependencies": [

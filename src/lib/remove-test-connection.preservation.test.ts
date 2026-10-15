@@ -414,7 +414,10 @@ const NON_TC_KEYS = [
 ] as const;
 
 function loadLocale(locale: string): Record<string, string> {
-    const abs = path.join(REPO_ROOT, 'src-admin', 'src', 'i18n', `${locale}.json`);
+    // The admin UI i18n moved from the (now removed) src-admin React project to the
+    // declarative jsonConfig layout under admin/i18n/ during the jsonconfig-admin
+    // migration. The eight non-test-connection keys below carry over byte-for-byte.
+    const abs = path.join(REPO_ROOT, 'admin', 'i18n', `${locale}.json`);
     return JSON.parse(fs.readFileSync(abs, 'utf8')) as Record<string, string>;
 }
 

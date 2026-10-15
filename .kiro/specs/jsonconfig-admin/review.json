@@ -1,0 +1,12 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "severity": "HIGH",
+      "title": "Missing verification-pipeline evidence",
+      "detail": "The coder's required results for `npm run build`, `npm run check`, `npm run lint`, `npm run test:ts`, `npm run test:package`, and `npm run test:integration` are not present in this review's inputs and no report artifact exists on disk under the task/spec directory (no .agents/tasks/ directory, no report .md). The gate rule requires this evidence to show every command passing (or integration explicitly reported un-runnable in this environment with everything else green) before APPROVED, and treats missing evidence as a blocking CHANGES_REQUESTED finding that the reviewer must not fill by re-running the suites. Action: in the next implementation pass, run the full pipeline and report each command's pass/fail (or report test:integration as un-runnable here with everything else green) in the final message. All static artifacts (admin/jsonConfig.json, the 11 admin/i18n files, io-package.json, package.json, eslint.config.mjs, the test rewiring, the remove-test-connection.preservation.test.ts i18n repoint, and README_dev.md) match the APPROVED spec exactly, admin/sehybrid.png is retained, and the narrow spot-check of test/jsonconfig.test.js passes 11/11; this evidence gap is the sole blocker.",
+      "files": []
+    }
+  ],
+  "reviewDoc": "/home/rene/Dokumente/git/ioBroker.sehybrid/.kiro/specs/jsonconfig-admin/review.md"
+}
