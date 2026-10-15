@@ -360,7 +360,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "acEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "I_AC_Energy_WH \u2014 AC Lifetime Energy production"
   },
@@ -903,7 +903,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "M_Exported \u2014 Total Exported Real Energy"
   },
@@ -915,7 +915,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "M_Exported_A \u2014 Phase A Exported Real Energy"
   },
@@ -927,7 +927,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "M_Exported_B \u2014 Phase B Exported Real Energy"
   },
@@ -939,7 +939,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "M_Exported_C \u2014 Phase C Exported Real Energy"
   },
@@ -951,7 +951,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.consumed",
     iobType: "number",
     description: "M_Imported \u2014 Total Imported Real Energy"
   },
@@ -963,7 +963,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.consumed",
     iobType: "number",
     description: "M_Imported_A \u2014 Phase A Imported Real Energy"
   },
@@ -975,7 +975,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.consumed",
     iobType: "number",
     description: "M_Imported_B \u2014 Phase B Imported Real Energy"
   },
@@ -987,7 +987,7 @@ const SUNSPEC_MAP = [
     datatype: "acc32",
     scaleFactorRef: "mEnergyWhSF",
     unit: "Wh",
-    role: "energy",
+    role: "energy.consumed",
     iobType: "number",
     description: "M_Imported_C \u2014 Phase C Imported Real Energy"
   },
@@ -1199,7 +1199,7 @@ const BATTERY_MAP = [
     length: 4,
     datatype: "uint64le",
     unit: "Wh",
-    role: "energy",
+    role: "energy.produced",
     iobType: "number",
     description: "Battery Lifetime_Export_Energy \u2014 Total Exported Energy"
   },
@@ -1210,7 +1210,7 @@ const BATTERY_MAP = [
     length: 4,
     datatype: "uint64le",
     unit: "Wh",
-    role: "energy",
+    role: "energy.consumed",
     iobType: "number",
     description: "Battery Lifetime_Import_Energy \u2014 Total Imported Energy"
   },

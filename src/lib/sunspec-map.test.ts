@@ -57,6 +57,8 @@ const ALL_ROLES: SunSpecRole[] = [
     'powerFactor',
     'frequency',
     'energy',
+    'energy.produced',
+    'energy.consumed',
     'temperature',
     'percent',
     'status',

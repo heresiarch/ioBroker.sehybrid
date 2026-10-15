@@ -1,0 +1,162 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Property failed after 1 test. Counterexample: [{\"name\":\"acEnergyWh\",\"channel\":\"inverter\",\"expectedRole\":\"value.energy.produced\"}]. AssertionError: inverter.acEnergyWh role: expected 'value.energy' to equal 'value.energy.produced'. Additional counterexamples: meter.1.mImportedWh expected 'value.energy' to equal 'value.energy.consumed'. Every directional energy register resolves to the generic value.energy on the unfixed code, confirming the bug exists.",
+      "lastRunTimestamp": 1792051745971
+    },
+    "3.4 Verify bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1792052270263
+    },
+    "3.5 Verify preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1792052313504
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638568
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051644719
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051775541
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638642
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051778608
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051932433
+      }
+    ],
+    "3.1 Extend the role vocabulary and retag directional energy registers in `src/lib/sunspec-map.ts`": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638706
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051938802
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052055426
+      }
+    ],
+    "3.2 Extend ROLE_MAP in `src/lib/state-manager.ts`": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638754
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052058436
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052104840
+      }
+    ],
+    "3.3 Update existing tests in `src/lib/state-manager.test.ts` for the new roles": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638807
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052107836
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052232572
+      }
+    ],
+    "3.4 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638872
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052236614
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052282154
+      }
+    ],
+    "3.5 Verify preservation tests still pass": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638901
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052285282
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052324049
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792051638935
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052327385
+      },
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052472888
+      }
+    ],
+    "3. Fix directional energy role granularity": [
+      {
+        "executionId": "79e8c12b-e8ec-4899-9cd8-dcd1fa3a1608",
+        "chatSessionId": "sess_62a2970c-75e6-42d0-a3e5-26ff76601389",
+        "timestamp": 1792052324123
+      }
+    ]
+  }
+}

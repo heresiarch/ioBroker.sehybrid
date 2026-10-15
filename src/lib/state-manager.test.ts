@@ -16,6 +16,7 @@ import fc from 'fast-check';
 import type { ChannelPath, IStateManager, StateManagerAdapter } from './state-manager';
 import { StateManager } from './state-manager';
 import { STOREDGE_CONTROL_REGISTERS } from './storedge-control-map';
+import { decodeRegisters } from './sunspec-decode';
 import type { SunSpecRegisterDef } from './sunspec-map';
 import {
     BATTERY_MAP,
@@ -247,10 +248,10 @@ describe('state-manager => StateManager', () => {
                 'value.current',
             );
 
-            // energy -> value.energy
+            // energy.produced -> value.energy.produced (acEnergyWh is directional/produced)
             await manager.ensureState('inverter', defByName('acEnergyWh'));
             expect((adapter.objects.get('inverter.acEnergyWh')!.common as ioBroker.StateCommon).role).to.equal(
-                'value.energy',
+                'value.energy.produced',
             );
 
             // status -> value (numeric read-only status; 'indicator' is boolean-only, E1009)
@@ -850,6 +851,8 @@ describe('state-manager => StateManager', () => {
             powerFactor: 'value',
             frequency: 'value.frequency',
             energy: 'value.energy',
+            'energy.produced': 'value.energy.produced',
+            'energy.consumed': 'value.energy.consumed',
             temperature: 'value.temperature',
             percent: 'value.fill',
         };
@@ -912,7 +915,7 @@ describe('state-manager => StateManager', () => {
 
             expect(commonFor(adapter, 'inverter.acPower').role).to.equal('value.power.active');
             expect(commonFor(adapter, 'inverter.acCurrent').role).to.equal('value.current');
-            expect(commonFor(adapter, 'inverter.acEnergyWh').role).to.equal('value.energy');
+            expect(commonFor(adapter, 'inverter.acEnergyWh').role).to.equal('value.energy.produced');
         });
 
         // ----------------------------------------------------------------
@@ -1283,6 +1286,8 @@ describe('state-manager => StateManager', () => {
             powerFactor: 'value',
             frequency: 'value.frequency',
             energy: 'value.energy',
+            'energy.produced': 'value.energy.produced',
+            'energy.consumed': 'value.energy.consumed',
             temperature: 'value.temperature',
             percent: 'value.fill',
             status: 'value',
@@ -1456,5 +1461,443 @@ describe('state-manager => StateManager', () => {
                 expect(common.role, `${def.name} StorEdge role`).to.equal(EXPECTED_STOREDGE_ROLE[def.name]);
             }
         });
+    });
+});
+
+// ===========================================================================
+// Feature: energy-role-granularity, Task 1 — Bug Condition Exploration Test
+//
+// Property 1: Bug Condition — Directional energy states collapse to the generic
+// `value.energy` role instead of a direction-specific role.
+//
+// This is a BUG-CONDITION EXPLORATION test following the bug-condition
+// methodology. On the UNFIXED code it is EXPECTED TO FAIL: every directional
+// energy register (`role: 'energy'`) resolves through ROLE_MAP to the generic
+// `value.energy`, so asserting the direction-specific role surfaces the
+// counterexamples that prove the bug exists. The SAME test will pass once the
+// fix retags the directional registers and extends ROLE_MAP.
+//
+// Scoped PBT approach: the bug is deterministic over a fixed set of ten register
+// names, so the property is scoped to those concrete cases resolved by name from
+// SUNSPEC_MAP / BATTERY_MAP.
+//
+// Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5 (bug) / 2.1, 2.2, 2.3, 2.4, 2.5 (fix)
+// ===========================================================================
+
+describe('energy-role-granularity => Property 1 (Bug Condition): directional energy roles', () => {
+    /** A local mock adapter mirroring the one used above (self-contained block). */
+    class ExplorationAdapter implements StateManagerAdapter {
+        readonly objects = new Map<string, ioBroker.SettableObject>();
+
+        setObjectNotExistsAsync(id: string, obj: ioBroker.SettableObject): ioBroker.SetObjectPromise {
+            if (!this.objects.has(id)) {
+                this.objects.set(id, obj);
+            }
+            return Promise.resolve({ id });
+        }
+
+        setStateAsync(id: string): Promise<string> {
+            return Promise.resolve(id);
+        }
+    }
+
+    /**
+     * Resolve a register def by name from SUNSPEC_MAP first, then BATTERY_MAP.
+     *
+     * @param name - The register def `name` to look up.
+     */
+    function defByName(name: string): SunSpecRegisterDef {
+        const def = SUNSPEC_MAP.find(d => d.name === name) ?? BATTERY_MAP.find(d => d.name === name);
+        expect(def, `expected a register def named ${name}`).to.not.equal(undefined);
+        return def!;
+    }
+
+    /** The ten directional energy registers paired with their channel + expected role. */
+    const DIRECTIONAL_ENERGY_CASES: { name: string; channel: ChannelPath; expectedRole: string }[] = [
+        // Produced / exported -> value.energy.produced (Req 1.1, 1.2, 1.4 / 2.1, 2.2, 2.4)
+        { name: 'acEnergyWh', channel: 'inverter', expectedRole: 'value.energy.produced' },
+        { name: 'mExportedWh', channel: 'meter.1', expectedRole: 'value.energy.produced' },
+        { name: 'mExportedWhA', channel: 'meter.1', expectedRole: 'value.energy.produced' },
+        { name: 'mExportedWhB', channel: 'meter.1', expectedRole: 'value.energy.produced' },
+        { name: 'mExportedWhC', channel: 'meter.1', expectedRole: 'value.energy.produced' },
+        { name: 'lifetimeExportEnergy', channel: 'battery.1', expectedRole: 'value.energy.produced' },
+        // Consumed / imported -> value.energy.consumed (Req 1.3, 1.5 / 2.3, 2.5)
+        { name: 'mImportedWh', channel: 'meter.1', expectedRole: 'value.energy.consumed' },
+        { name: 'mImportedWhA', channel: 'meter.1', expectedRole: 'value.energy.consumed' },
+        { name: 'mImportedWhB', channel: 'meter.1', expectedRole: 'value.energy.consumed' },
+        { name: 'mImportedWhC', channel: 'meter.1', expectedRole: 'value.energy.consumed' },
+        { name: 'lifetimeImportEnergy', channel: 'battery.1', expectedRole: 'value.energy.consumed' },
+    ];
+
+    /**
+     * Create the state for a directional energy register and read back its role.
+     *
+     * @param channel - The channel the state is created under.
+     * @param name - The register def name.
+     */
+    async function roleFor(channel: ChannelPath, name: string): Promise<string> {
+        const adapter = new ExplorationAdapter();
+        const manager = new StateManager(adapter);
+        await manager.ensureState(channel, defByName(name));
+        const obj = adapter.objects.get(`${channel}.${name}`);
+        expect(obj, `${channel}.${name} object`).to.not.equal(undefined);
+        return (obj!.common as ioBroker.StateCommon).role;
+    }
+
+    it('assigns a direction-specific role to every directional energy register (fails on unfixed code)', async () => {
+        await fc.assert(
+            fc.asyncProperty(fc.constantFrom(...DIRECTIONAL_ENERGY_CASES), async testCase => {
+                const role = await roleFor(testCase.channel, testCase.name);
+                // On UNFIXED code `role` is 'value.energy' for every case, so this
+                // assertion fails and fast-check reports the directional register as
+                // the counterexample. After the fix the direction-specific role holds.
+                expect(role, `${testCase.channel}.${testCase.name} role`).to.equal(testCase.expectedRole);
+            }),
+            { numRuns: DIRECTIONAL_ENERGY_CASES.length * 4 },
+        );
+    });
+
+    it('assigns value.energy.produced to each produced/exported energy register (Req 2.1, 2.2, 2.4)', async () => {
+        for (const testCase of DIRECTIONAL_ENERGY_CASES.filter(c => c.expectedRole === 'value.energy.produced')) {
+            const role = await roleFor(testCase.channel, testCase.name);
+            expect(role, `${testCase.channel}.${testCase.name} role`).to.equal('value.energy.produced');
+        }
+    });
+
+    it('assigns value.energy.consumed to each consumed/imported energy register (Req 2.3, 2.5)', async () => {
+        for (const testCase of DIRECTIONAL_ENERGY_CASES.filter(c => c.expectedRole === 'value.energy.consumed')) {
+            const role = await roleFor(testCase.channel, testCase.name);
+            expect(role, `${testCase.channel}.${testCase.name} role`).to.equal('value.energy.consumed');
+        }
+    });
+});
+
+// ===========================================================================
+// Feature: energy-role-granularity, Task 2 — Preservation Property Tests
+//
+// Property 2: Preservation — Non-directional and non-energy state attributes
+// unchanged. For every register where the bug condition does NOT hold, the
+// resolved `common.role` must stay exactly what the UNFIXED code produces; and
+// for EVERY register the `type`, `unit`, `read`, `write` and the decoded numeric
+// value must be identical before and after the fix (only the role string of the
+// ten directional energy registers may change).
+//
+// Observation-first methodology: the expected values below were observed by
+// running the UNFIXED code and recording actual outputs. These tests MUST PASS
+// on the unfixed code — they capture the baseline the fix must preserve.
+//
+// Observed on UNFIXED code:
+//   - Capacity energy (ratedEnergy, maximumEnergy, availableEnergy) -> value.energy
+//   - acPower -> value.power.active ; acCurrent -> value.current
+//   - Every StorEdgeControlBlock setpoint keeps its STOREDGE_CONTROL_ROLE_MAP role
+//   - Every energy state: type=number, unit=Wh, read=true, write=false
+//
+// Validates: Requirements 3.1, 3.2, 3.3, 3.4
+// ===========================================================================
+
+describe('energy-role-granularity => Property 2 (Preservation): non-directional attributes unchanged', () => {
+    /** Mock adapter recording created objects, mirroring the suite-level MockAdapter. */
+    class PreservationAdapter implements StateManagerAdapter {
+        readonly objects = new Map<string, ioBroker.SettableObject>();
+
+        setObjectNotExistsAsync(id: string, obj: ioBroker.SettableObject): ioBroker.SetObjectPromise {
+            if (!this.objects.has(id)) {
+                this.objects.set(id, obj);
+            }
+            return Promise.resolve({ id });
+        }
+
+        setStateAsync(id: string): Promise<string> {
+            return Promise.resolve(id);
+        }
+    }
+
+    /** The ten directional energy registers whose role string the fix changes. */
+    const DIRECTIONAL_ENERGY_NAMES = new Set<string>([
+        'acEnergyWh',
+        'mExportedWh',
+        'mExportedWhA',
+        'mExportedWhB',
+        'mExportedWhC',
+        'lifetimeExportEnergy',
+        'mImportedWh',
+        'mImportedWhA',
+        'mImportedWhB',
+        'mImportedWhC',
+        'lifetimeImportEnergy',
+    ]);
+
+    /**
+     * Pre-fix `common.role` observed on the UNFIXED code for every logical
+     * SunSpec role (the current, total ROLE_MAP). Preservation asserts the
+     * resolved role equals this baseline for every def where the bug condition
+     * does NOT hold.
+     */
+    const PREFIX_ROLE: Record<string, string> = {
+        current: 'value.current',
+        voltage: 'value.voltage',
+        power: 'value.power.active',
+        'power.apparent': 'value.power',
+        'power.reactive': 'value.power.reactive',
+        powerFactor: 'value',
+        frequency: 'value.frequency',
+        energy: 'value.energy',
+        temperature: 'value.temperature',
+        percent: 'value.fill',
+        status: 'value',
+        info: 'value',
+    };
+
+    /** Pre-fix StorEdgeControlBlock roles observed on the UNFIXED code (separate map). */
+    const PREFIX_STOREDGE_ROLE: Record<string, string> = {
+        storageControlMode: 'level',
+        storageAcChargePolicy: 'level',
+        storageAcChargeLimit: 'level',
+        storageBackupReservedSetting: 'level.fill',
+        storageChargeDischargeDefaultMode: 'level',
+        remoteControlCommandTimeout: 'level.timer',
+        remoteControlCommandMode: 'level',
+        remoteControlChargeLimit: 'level',
+        remoteControlDischargeLimit: 'level',
+    };
+
+    /**
+     * Resolve the created state common for an id, asserting the object exists and
+     * is a state object.
+     *
+     * @param adapter - The mock adapter whose recorded objects are inspected.
+     * @param id - The state id to look up.
+     */
+    function commonFor(adapter: PreservationAdapter, id: string): ioBroker.StateCommon {
+        const obj = adapter.objects.get(id);
+        expect(obj, `${id} object`).to.not.equal(undefined);
+        expect(obj!.type).to.equal('state');
+        return obj!.common as ioBroker.StateCommon;
+    }
+
+    /**
+     * Every SunSpec value def (inverter/meter) + every battery value def, paired
+     * with the channel it is created under — mirrors the production routing.
+     */
+    const sunspecCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+        ...allValueDefs.map(def => ({ channel: channelForDef(def), def })),
+        ...allBatteryValueDefs.map((def): { channel: ChannelPath; def: SunSpecRegisterDef } => ({
+            channel: 'battery.1',
+            def,
+        })),
+    ];
+
+    // ----------------------------------------------------------------
+    // Req 3.1, 3.3 — role preservation for every NON-directional def.
+    // PBT over all SUNSPEC_MAP (+ battery) value defs where the bug condition
+    // does NOT hold: the resolved role must equal the pre-fix baseline role.
+    // ----------------------------------------------------------------
+    it('preserves the pre-fix common.role of every def outside the ten directional energy registers (Req 3.1, 3.3)', async () => {
+        const nonDirectionalCases = sunspecCases.filter(c => !DIRECTIONAL_ENERGY_NAMES.has(c.def.name));
+
+        // Sanity: the representative preserved cases are actually exercised.
+        expect(
+            nonDirectionalCases.some(c => c.def.name === 'acPower' && c.def.role === 'power'),
+            'acPower exercised',
+        ).to.equal(true);
+        expect(
+            nonDirectionalCases.some(c => c.def.name === 'acCurrent' && c.def.role === 'current'),
+            'acCurrent exercised',
+        ).to.equal(true);
+        // Capacity energy registers (no flow direction) stay role 'energy'.
+        for (const capacity of ['ratedEnergy', 'maximumEnergy', 'availableEnergy']) {
+            expect(
+                nonDirectionalCases.some(c => c.def.name === capacity && c.def.role === 'energy'),
+                `${capacity} exercised`,
+            ).to.equal(true);
+        }
+
+        await fc.assert(
+            fc.asyncProperty(fc.constantFrom(...nonDirectionalCases), async ({ channel, def }) => {
+                const adapter = new PreservationAdapter();
+                const manager: IStateManager = new StateManager(adapter);
+
+                await manager.ensureState(channel, def);
+
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                const expected = PREFIX_ROLE[def.role];
+                expect(expected, `pre-fix role known for ${def.role}`).to.not.equal(undefined);
+                expect(common.role, `${def.name} (${def.role}) role`).to.equal(expected);
+            }),
+            { numRuns: 200 },
+        );
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.1 — capacity energy explicit representative check: the three
+    // capacity-type energy registers resolve to value.energy on battery.1.
+    // ----------------------------------------------------------------
+    it('keeps capacity-type energy states (ratedEnergy, maximumEnergy, availableEnergy) on value.energy (Req 3.1)', async () => {
+        const capacityNames = ['ratedEnergy', 'maximumEnergy', 'availableEnergy'];
+        for (const name of capacityNames) {
+            const def = BATTERY_MAP.find(d => d.name === name);
+            expect(def, `battery def ${name}`).to.not.equal(undefined);
+            const adapter = new PreservationAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureState('battery.1', def!);
+            const common = commonFor(adapter, `battery.1.${name}`);
+            expect(common.role, `${name} role`).to.equal('value.energy');
+        }
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.3 — explicit non-energy representative checks: acPower and acCurrent.
+    // ----------------------------------------------------------------
+    it('keeps acPower on value.power.active and acCurrent on value.current (Req 3.3)', async () => {
+        const cases = [
+            { name: 'acPower', expected: 'value.power.active' },
+            { name: 'acCurrent', expected: 'value.current' },
+        ];
+        for (const { name, expected } of cases) {
+            const def = SUNSPEC_MAP.find(d => d.name === name);
+            expect(def, `sunspec def ${name}`).to.not.equal(undefined);
+            const adapter = new PreservationAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureState('inverter', def!);
+            const common = commonFor(adapter, `inverter.${name}`);
+            expect(common.role, `${name} role`).to.equal(expected);
+        }
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.3 — the nine StorEdgeControlBlock states keep their
+    // STOREDGE_CONTROL_ROLE_MAP roles (separate map, untouched by this fix).
+    // ----------------------------------------------------------------
+    it('keeps the nine StorEdgeControlBlock setpoint roles unchanged (Req 3.3)', async () => {
+        const adapter = new PreservationAdapter();
+        const manager = new StateManager(adapter);
+        await manager.ensureStorEdgeControlBlock();
+
+        const names = STOREDGE_CONTROL_REGISTERS.map(d => d.name).sort();
+        expect(names, 'exactly nine StorEdgeControlBlock controls').to.deep.equal(
+            Object.keys(PREFIX_STOREDGE_ROLE).sort(),
+        );
+
+        for (const def of STOREDGE_CONTROL_REGISTERS) {
+            const common = commonFor(adapter, `StorEdgeControlBlock.${def.name}`);
+            expect(common.role, `${def.name} StorEdge role`).to.equal(PREFIX_STOREDGE_ROLE[def.name]);
+        }
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.2 — non-role attribute preservation for EVERY energy state.
+    // Observed on UNFIXED code: type=number, unit=Wh, read=true, write=false.
+    // These hold both for capacity and directional energy states (the fix only
+    // touches the role string of the directional ones).
+    // ----------------------------------------------------------------
+    it('keeps type=number, unit=Wh, read=true, write=false for every energy state (Req 3.2)', async () => {
+        const energyCases = sunspecCases.filter(c => c.def.unit === 'Wh');
+
+        // Sanity: all fourteen energy registers (ten directional + three capacity +
+        // none else) carry unit Wh and are exercised.
+        const energyNames = energyCases.map(c => c.def.name).sort();
+        expect(energyNames, 'the Wh energy registers are exactly the expected fourteen').to.deep.equal(
+            [
+                'acEnergyWh',
+                'mExportedWh',
+                'mExportedWhA',
+                'mExportedWhB',
+                'mExportedWhC',
+                'mImportedWh',
+                'mImportedWhA',
+                'mImportedWhB',
+                'mImportedWhC',
+                'ratedEnergy',
+                'maximumEnergy',
+                'availableEnergy',
+                'lifetimeExportEnergy',
+                'lifetimeImportEnergy',
+            ].sort(),
+        );
+
+        await fc.assert(
+            fc.asyncProperty(fc.constantFrom(...energyCases), async ({ channel, def }) => {
+                const adapter = new PreservationAdapter();
+                const manager: IStateManager = new StateManager(adapter);
+
+                await manager.ensureState(channel, def);
+
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.type, `${def.name} type`).to.equal('number');
+                expect(common.unit, `${def.name} unit`).to.equal('Wh');
+                expect(common.read, `${def.name} read`).to.equal(true);
+                expect(common.write, `${def.name} write`).to.equal(false);
+            }),
+            { numRuns: 100 },
+        );
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.2 — type/unit/read/write preservation for EVERY register (not just
+    // energy): PBT over all SUNSPEC_MAP (+ battery) value defs confirms the fix
+    // leaves these attributes exactly as observed on the unfixed code.
+    // ----------------------------------------------------------------
+    it('preserves type/unit/read/write for every value def (Req 3.2)', async () => {
+        await fc.assert(
+            fc.asyncProperty(fc.constantFrom(...sunspecCases), async ({ channel, def }) => {
+                const adapter = new PreservationAdapter();
+                const manager: IStateManager = new StateManager(adapter);
+
+                await manager.ensureState(channel, def);
+
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                // read/write are the same for every SunSpec read state.
+                expect(common.read, `${def.name} read`).to.equal(true);
+                expect(common.write, `${def.name} write`).to.equal(false);
+                // type and unit are derived verbatim from the def and must not change.
+                expect(common.type, `${def.name} type`).to.equal(def.iobType);
+                expect(common.unit, `${def.name} unit`).to.equal(def.unit);
+            }),
+            { numRuns: 300 },
+        );
+    });
+
+    // ----------------------------------------------------------------
+    // Req 3.4 — decoded numeric value preservation. The fix changes only role
+    // strings and never touches decoding, so decodeRegisters must produce the
+    // SAME numeric value for a generated range of raw register words. We decode
+    // against the directional energy datatypes (acc32 big-endian, uint64le) to
+    // exercise the exact registers whose role the fix retags.
+    // ----------------------------------------------------------------
+    it('decodes directional energy registers to the identical numeric value (role change does not touch decoding) (Req 3.4)', () => {
+        const wordArb = fc.integer({ min: 0, max: 0xfffe }); // avoid the all-ones sentinel words
+
+        // acc32 (big-endian two words): acEnergyWh, mExported*/mImported* registers.
+        fc.assert(
+            fc.property(wordArb, wordArb, (hi, lo) => {
+                const words = [hi, lo];
+                // The decode is pure and independent of any role string; decoding
+                // twice (as the fix cannot alter the decoder) yields the same value.
+                const first = decodeRegisters(words, 'acc32');
+                const second = decodeRegisters(words, 'acc32');
+                expect(second, `acc32 decode of [${hi}, ${lo}]`).to.equal(first);
+                // Baseline formula observed on unfixed code: (hi<<16 | lo) >>> 0.
+                const expected = (((hi & 0xffff) << 16) | (lo & 0xffff)) >>> 0;
+                expect(first, `acc32 value of [${hi}, ${lo}]`).to.equal(expected);
+            }),
+            { numRuns: 300 },
+        );
+
+        // uint64le (four little-endian words): lifetimeExportEnergy / lifetimeImportEnergy.
+        fc.assert(
+            fc.property(wordArb, wordArb, wordArb, wordArb, (w0, w1, w2, w3) => {
+                const words = [w0, w1, w2, w3];
+                const first = decodeRegisters(words, 'uint64le');
+                const second = decodeRegisters(words, 'uint64le');
+                expect(second, `uint64le decode of [${w0}, ${w1}, ${w2}, ${w3}]`).to.equal(first);
+                // Baseline formula observed on unfixed code: hi*2^32 + lo with
+                // little-endian word order (w0 lowest .. w3 highest).
+                const hi = (((w3 & 0xffff) << 16) | (w2 & 0xffff)) >>> 0;
+                const lo = (((w1 & 0xffff) << 16) | (w0 & 0xffff)) >>> 0;
+                const expected = hi * 4294967296 + lo;
+                expect(first, `uint64le value of [${w0}, ${w1}, ${w2}, ${w3}]`).to.equal(expected);
+            }),
+            { numRuns: 300 },
+        );
     });
 });

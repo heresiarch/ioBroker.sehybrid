@@ -123,6 +123,8 @@ const ROLE_MAP: Record<SunSpecRole, string> = {
     powerFactor: 'value',
     frequency: 'value.frequency',
     energy: 'value.energy',
+    'energy.produced': 'value.energy.produced',
+    'energy.consumed': 'value.energy.consumed',
     temperature: 'value.temperature',
     percent: 'value.fill',
     status: 'value',
