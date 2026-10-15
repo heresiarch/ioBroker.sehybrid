@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.17 (2026-10-11)
+* fix issues by iobroker review
+
 ## 1.0.16 (2026-09-29)
 * fixed io-package.json
 * fixed tests

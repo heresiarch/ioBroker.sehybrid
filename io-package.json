@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.21",
+    "version": "1.1.0",
     "news": {
+      "1.1.0": {
+        "en": "jsonConfig Migration for Admin UI\nfix Readme.md\nfix JSDoc warnings",
+        "de": "JSONConfig-Migration für Admin UI\nfix README.md\nFix JSDoc-Warnungen",
+        "ru": "Миграция JSONConfig для пользовательского интерфейса администратора\nисправить файл README.md\nисправить предупреждения JSDoc",
+        "pt": "Migração JSONConfig para Admin UI\nfix README.md\nfixe avisos JSDoc",
+        "nl": "Migratie van JSONConfig voor Admin UI\nREADME.md repareren\nJSDoc-waarschuwingen corrigeren",
+        "fr": "Migration JSONConfig pour Admin UI\nfix README.md\ncorriger les alertes JSDoc",
+        "it": "JsonConfig Migration for Admin UI\nfix README.md\nfix avvisi JSDoc",
+        "es": "Migración de JsonConfig a Admin UI\narreglar README.md\narreglar avisos de JSDoc",
+        "pl": "Migracja JSONConfig dla interfejsu administratora\nnapraw README.md\nnaprawić ostrzeżenia JSDoc",
+        "uk": "Міграція JSONConfig для інтерфейсу адміністратора\nвиправлення README.md\nвиправлення попереджень JSDoc",
+        "zh-cn": "管理界面的 JsonConfig 迁移\n修复 README.md\n修复 JSDoc 警告"
+      },
       "1.0.21": {
         "en": "fix GH workflow lint errors",
         "de": "Fix GH Workflow-Lint-Fehler",

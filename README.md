@@ -272,11 +272,11 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
-### **WORK IN PROGRESS**
+### 1.1.0 (2026-10-15)
 * jsonConfig Migration for Admin UI
 * fix Readme.md
 * fix JSDoc warnings
- 
+
 ### 1.0.21 (2026-10-15)
 * fix GH workflow lint errors
 
@@ -293,9 +293,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 * reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control
 * document the `remoteControlCommandMode` null behavior in the README
 * fix the `test:ts` glob so the main-module tests actually run
-
-### 1.0.17 (2026-10-11)
-* fix issues by iobroker review
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
