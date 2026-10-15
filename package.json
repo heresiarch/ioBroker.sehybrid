@@ -68,7 +68,6 @@
     "watch:ts": "build-adapter ts --watch",
     "prebuild:react": "rimraf admin/assets admin/index.html src-admin/build",
     "build:react": "node tasks",
-    "watch:react": "npm run watch --prefix src-admin",
     "prebuild": "rimraf build admin/assets admin/index.html src-admin/build",
     "build": "npm run build:ts && npm run build:react",
     "watch": "build-adapter ts --watch",

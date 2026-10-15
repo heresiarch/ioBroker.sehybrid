@@ -47,9 +47,14 @@ npm run dev-server        # admin-UI work: admin only, adapter not started
 npm run dev-server:watch  # backend work: runs the adapter and restarts it on src/ changes
 ```
 
-Both commands run the admin UI in watch mode, so changes to `src-admin/` are rebuilt automatically — just
-refresh the browser. Use `dev-server:watch` when changing backend code in `src/` so the recompiled adapter
-restarts automatically. Plain `dev-server` only starts the admin (lighter when working on the admin page).
+Use `dev-server:watch` when changing backend code in `src/` so the recompiled adapter restarts automatically.
+Plain `dev-server` only starts the admin (lighter when working on the admin page).
+
+> The admin UI is **not** rebuilt automatically by `dev-server`. The admin build has a single Vite config
+> (`src-admin/vite.config.ts`), which writes to `src-admin/build` and is copied into `admin/` only by the
+> production pipeline. When you change `src-admin/`, rebuild the admin bundle with `npm run build:react` (or a
+> full `npm run build`) and then refresh the browser. This keeps the committed `admin/` bundle deterministic —
+> there is no second (watch) build path that would overwrite it with a different layout.
 
 > The `dev-server` script runs with `--noBrowserSync` on purpose. BrowserSync (auto browser reload) interferes
 > with the admin socket.io connection here, causing the UI to reconnect endlessly. Without it the admin
@@ -66,7 +71,6 @@ Run with `npm run <name>`.
 | `build:ts` | Build only the backend into `build/`. |
 | `build:react` | Build only the admin UI and copy it into `admin/`. |
 | `watch:ts` | Rebuild the backend on change. |
-| `watch:react` | Rebuild the admin UI on change (Vite watch, output into `admin/`). |
 | `dev-server` | Run the ioBroker admin for admin-UI development (adapter not started, no BrowserSync). |
 | `dev-server:sync` | Same as `dev-server`, with BrowserSync auto-reload. |
 | `dev-server:watch` | Run ioBroker **and** the adapter in watch mode (adapter restarts on `src/` changes). |
@@ -83,9 +87,10 @@ Run with `npm run <name>`.
 ## Compilation config
 
 The backend is compiled with [esbuild](https://esbuild.github.io/) via `@iobroker/adapter-dev`; adjust settings
-in `tsconfig.json` / `tsconfig.build.json`. The admin UI is bundled with [Vite](https://vitejs.dev/): config
-lives in `src-admin/vite.config.ts` (production) and `src-admin/vite.config.watch.ts` (watch build used by
-`dev-server`).
+in `tsconfig.json` / `tsconfig.build.json`. The admin UI is bundled with [Vite](https://vitejs.dev/): the single
+config lives in `src-admin/vite.config.ts`. It writes to `src-admin/build`, which `tasks.js` copies into
+`admin/`. There is no separate watch build config, so the committed `admin/` bundle is produced only by this
+one path.
 
 ## Testing
 

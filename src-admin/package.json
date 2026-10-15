@@ -25,7 +25,6 @@
     "scripts": {
         "start": "vite",
         "build": "vite build",
-        "watch": "vite build --watch --config vite.config.watch.ts",
         "lint": "eslint -c eslint.config.mjs .",
         "check": "tsc --noEmit"
     }
