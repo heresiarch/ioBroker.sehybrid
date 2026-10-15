@@ -145,6 +145,7 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### WORK IN PROGRESS ###
 * fix vite watch config
 * fix reactive power roles
+* fix energy state roles
 
 
 ### 1.0.18 (2026-10-11)
