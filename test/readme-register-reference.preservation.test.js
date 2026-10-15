@@ -330,7 +330,11 @@ describe('Preservation: non-buggy surfaces unchanged (modbus-register-reference-
             },
             {
                 section: 'Changelog',
-                anchor: '## Changelog\n### **WORK IN PROGRESS**',
+                // Anchor on the stable developer note + heading, NOT the volatile
+                // version line (release tooling rewrites '### **WORK IN PROGRESS**'
+                // into '### <version> (<date>)', which must not break this check).
+                anchor:
+                    'Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.\n\n## Changelog',
             },
             {
                 section: 'License',
