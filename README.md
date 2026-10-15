@@ -74,17 +74,20 @@ Every poll cycle, all nine states are refreshed with the inverter's live values 
 nine states also accepts writes: set a new value (`ack=false`) from a script, the admin object tree, or any
 other adapter, and it is range-validated and written straight through to the inverter via Modbus:
 
-| State (`StorEdgeControlBlock.*`) | Register | Description | Range / Unit |
-| --- | --- | --- | --- |
-| `storageControlMode` | `0xE004` | Storage Control Mode | 0–4 |
-| `storageAcChargePolicy` | `0xE005` | AC Charge Policy | 0–3 |
-| `storageAcChargeLimit` | `0xE006` | AC Charge Limit | kWh |
-| `storageBackupReservedSetting` | `0xE008` | Backup Reserved Setting | %, 0–100 |
-| `storageChargeDischargeDefaultMode` | `0xE00A` | Charge/Discharge Default Mode | 0–7 |
-| `remoteControlCommandTimeout` | `0xE00B` | Remote Control Command Timeout | s |
-| `remoteControlCommandMode` | `0xE00D` | Remote Control Command Mode (reads `null` while the inverter is not in Remote Control — see note below) | 0–7 |
-| `remoteControlChargeLimit` | `0xE00E` | Remote Control Charge Limit | W |
-| `remoteControlDischargeLimit` | `0xE010` | Remote Control Discharge Limit | W |
+| State (`StorEdgeControlBlock.*`) | Description |
+| --- | --- |
+| `storageControlMode` | Storage Control Mode |
+| `storageAcChargePolicy` | AC Charge Policy |
+| `storageAcChargeLimit` | AC Charge Limit |
+| `storageBackupReservedSetting` | Backup Reserved Setting |
+| `storageChargeDischargeDefaultMode` | Charge/Discharge Default Mode |
+| `remoteControlCommandTimeout` | Remote Control Command Timeout |
+| `remoteControlCommandMode` | Remote Control Command Mode (reads `null` while the inverter is not in Remote Control — see note below) |
+| `remoteControlChargeLimit` | Remote Control Charge Limit |
+| `remoteControlDischargeLimit` | Remote Control Discharge Limit |
+
+The register address, encoding, unit, range and Modbus function code for each state are in the generated
+[StorEdge control block registers](#storedge-control-block-registers) reference below.
 
 > **`remoteControlCommandMode` is `null` unless Remote Control is active.** The inverter only reports a real
 > command mode (`0`–`7`) in this register while `storageControlMode` is set to `4` (Remote Control). When the
@@ -270,7 +273,9 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 
 ## Changelog
 ### **WORK IN PROGRESS**
-* jsonConfig Migration for Admin UI 
+* jsonConfig Migration for Admin UI
+* fix Readme.md
+ 
 ### 1.0.21 (2026-10-15)
 * fix GH workflow lint errors
 
