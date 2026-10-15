@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.19",
+    "version": "1.0.20",
     "news": {
+      "1.0.20": {
+        "en": "Removed the manual connection-test button from the Admin UI configuration\nRemoved static Sunspec Register Tables from Admin UI, added them to doc in Readme.md",
+        "de": "Manueller Verbindungstest aus der Admin-UI entfernt\nStatische Sunspec Register Tables aus Admin UI entfernt, zu DOC in README.md",
+        "ru": "Убрана кнопка проверки подключения вручную из конфигурации пользовательского интерфейса администратора\nУдалены статические таблицы Sunspec Register из пользовательского интерфейса администратора, добавлены в документ в README.md",
+        "pt": "Removido o botão manual de teste de conexão da configuração Admin UI\nRemoveu tabelas estáticas Sunspec Register do Admin UI e as adicionou ao doc em README.md",
+        "nl": "De knop voor het handmatig testen van de verbinding verwijderd uit de configuratie van de Admin UI\nStatische Sunspec Register-tabellen verwijderd uit de beheerdersinterface, ze toegevoegd aan het document in README.md",
+        "fr": "Le bouton de test de connexion manuel a été supprimé de la configuration de l'interface\nLes tables Sunspec statiques ont été supprimées de l'interface utilisateur et ajoutées à README.md",
+        "it": "Rimosso il pulsante manuale di test di connessione dalla Admin UI\nHa rimosso le tabelle Sunspec Register statiche da Admin UI e aggiunte in README.md",
+        "es": "Se quitó el botón de prueba de conexión manual de la configuración de Admin UI\nQuitó las tablas estáticas de Sunspec Register de la interfaz de usuario y las añadió al doc en README.md",
+        "pl": "Usunięto ręczny przycisk testowania połączenia z konfiguracją interfejsu administratora\nUsunięto statyczne tabele rejestru Sunspec z interfejsu administratora, dodano je do dokumentu w README.md",
+        "uk": "Вилучено кнопку ручного тестування підключення з конфігурації інтерфейсу адміністратора\nВидалено статичні таблиці реєстру Sunspec з інтерфейсу адміністратора, додано їх до документа в README.md",
+        "zh-cn": "从管理界面配置中移除了手动连接测试按钮\n从管理界面中移除了静态 Sunspec 注册表，将其添加到 README.md 中的文档中"
+      },
       "1.0.19": {
         "en": "fix vite watch config\nfix reactive power roles\nfix energy state roles",
         "de": "Fix Vite Watch Config\nBlindleistungsrollen\nEnergiezustandsregeln",
@@ -80,19 +93,6 @@
         "pl": "drobne poprawki package.json",
         "uk": "незначні виправлення package.json",
         "zh-cn": "小修复 package.js"
-      },
-      "1.0.12": {
-        "en": "minor fixes",
-        "de": "Kleine Fixes",
-        "ru": "незначительные исправления",
-        "pt": "pequenas correções",
-        "nl": "kleine aanpassingen",
-        "fr": "bugs mineurs",
-        "it": "fix minori",
-        "es": "pequeños arreglos",
-        "pl": "drobne poprawki",
-        "uk": "незначні виправлення",
-        "zh-cn": "小修复"
       }
     },
     "titleLang": {

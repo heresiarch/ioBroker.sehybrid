@@ -269,7 +269,7 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
-### **WORK IN PROGRESS**
+### 1.0.20 (2026-10-15)
 * Removed the manual connection-test button from the Admin UI configuration
 * Removed static Sunspec Register Tables from Admin UI, added them to doc in Readme.md
 
@@ -289,9 +289,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### 1.0.16 (2026-09-29)
 * fixed io-package.json
 * fixed tests
-
-### 1.0.15 (2026-09-28)
-* fix Lint errors
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 
