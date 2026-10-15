@@ -269,6 +269,8 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* fix GH workflow lint errors
 ### 1.0.20 (2026-10-15)
 * Removed the manual connection-test button from the Admin UI configuration
 * Removed static Sunspec Register Tables from Admin UI, added them to doc in Readme.md
