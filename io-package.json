@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.0.20",
+    "version": "1.0.21",
     "news": {
+      "1.0.21": {
+        "en": "fix GH workflow lint errors",
+        "de": "Fix GH Workflow-Lint-Fehler",
+        "ru": "исправить ошибки lint рабочего процесса GH",
+        "pt": "corrigir erros do GH Workflow",
+        "nl": "pluisfouten in de GH-workflow oplossen",
+        "fr": "fix GH Workflow Lint",
+        "it": "correggere GH Workflow Lint",
+        "es": "corregir errores de GH Workflow",
+        "pl": "naprawić błędy kłaczków przepływu pracy GH",
+        "uk": "виправлення помилок робочого процесу GH lint",
+        "zh-cn": "修复 GH 工作流程 lint 错误"
+      },
       "1.0.20": {
         "en": "Removed the manual connection-test button from the Admin UI configuration\nRemoved static Sunspec Register Tables from Admin UI, added them to doc in Readme.md",
         "de": "Manueller Verbindungstest aus der Admin-UI entfernt\nStatische Sunspec Register Tables aus Admin UI entfernt, zu DOC in README.md",
@@ -80,19 +93,6 @@
         "pl": "naprawić błędy Lint",
         "uk": "виправлення помилок Lint",
         "zh-cn": "修复 Lint 错误"
-      },
-      "1.0.13": {
-        "en": "minor fixes package.json",
-        "de": "Kleine Fixes package.json",
-        "ru": "незначительные исправления package.json",
-        "pt": "minor fix package.json",
-        "nl": "kleine aanpassingen package.json",
-        "fr": "correctifs package.json",
-        "it": "fix minori package.json",
-        "es": "pequeños arreglos package.json",
-        "pl": "drobne poprawki package.json",
-        "uk": "незначні виправлення package.json",
-        "zh-cn": "小修复 package.js"
       }
     },
     "titleLang": {

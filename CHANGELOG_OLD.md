@@ -1,4 +1,8 @@
 # Older changes
+## 1.0.16 (2026-09-29)
+* fixed io-package.json
+* fixed tests
+
 ## 1.0.15 (2026-09-28)
 * fix Lint errors
 
