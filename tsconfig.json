@@ -46,6 +46,6 @@
         "sourceMap": true,
         "inlineSourceMap": false
     },
-    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
     "exclude": ["build/**", "node_modules/**", "widgets/**"]
 }

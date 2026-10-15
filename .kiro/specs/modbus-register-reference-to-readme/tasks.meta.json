@@ -1,0 +1,205 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Exploration test correctly detected the bug on both surfaces (16/16 assertions failed on unfixed code — the SUCCESS case for a bug-condition test).\n\nCounterexamples on surface AdminConfigForm (src-admin/src/components/Settings.tsx):\n- Still defines/invokes renderValueTable() and renderStorEdgeTable()\n- Still imports SunSpec selectors getInverterValueDefs / getMeterValueDefs / getBatteryValueDefs\n- Still references STOREDGE_CONTROL_REGISTERS\n- Still imports @mui/material/Table and @mui/material/Accordion (register-table-only MUI machinery)\n=> The config form renders register reference tables instead of only the four connection fields.\n\nCounterexamples on surface Readme (README.md):\n- No <!-- BEGIN:GENERATED:sunspec-inverter --> / END markers\n- No sunspec-meter markers\n- No sunspec-battery markers\n- No storedge-control markers\n=> README.md has no generated, synced per-register SunSpec reference.",
+      "lastRunTimestamp": 1792083051031
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957584
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082965415
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083066565
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957664
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083069826
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083295186
+      }
+    ],
+    "3.1 Extract the shared formatters into `src/lib/register-format.ts`": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957732
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083301687
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083372064
+      }
+    ],
+    "3.2 Create the generator `scripts/generate-register-readme.ts` with `--check` mode": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957774
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083375000
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083611114
+      }
+    ],
+    "3.3 Add the generated-marker section to `README.md` and wire the npm scripts": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957843
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083614536
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083687907
+      }
+    ],
+    "3.4 Wire the sync check into the package test tier (CI gate)": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957919
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083691267
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083861460
+      }
+    ],
+    "3.5 Remove the register tables and table-only machinery from `Settings.tsx`": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082957974
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792083864890
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084142796
+      }
+    ],
+    "3.6 Remove the table-only i18n keys across all 11 locale files": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082958042
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084146231
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084255673
+      }
+    ],
+    "3.7 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082958095
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084259365
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084290534
+      }
+    ],
+    "3.8 Verify preservation tests still pass": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082958148
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084293739
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084329128
+      }
+    ],
+    "4. Checkpoint - Ensure the build, type-check, and all test suites pass": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792082958198
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084332966
+      },
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084758960
+      }
+    ],
+    "3. Fix: move the register reference out of the Admin form and into a synced README": [
+      {
+        "executionId": "2428603a-ecce-42d8-af43-6746fa1a7cd7",
+        "chatSessionId": "sess_681e59c1-df5a-4cac-a482-4f06fd77515b",
+        "timestamp": 1792084329200
+      }
+    ]
+  }
+}

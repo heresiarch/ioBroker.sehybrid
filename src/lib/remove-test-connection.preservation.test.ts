@@ -8,6 +8,15 @@
  *   start-time connect/poll/`info.connection` handling, and every non-test-connection
  *   i18n key — the codebase SHALL behave and resolve exactly as the original.
  *
+ * NOTE on i18n scope: a later spec (`modbus-register-reference-to-readme`) moved the
+ * SunSpec/StorEdge register reference out of the Admin UI and into the README, removing
+ * the 17 register-table i18n keys ('SunSpec Values', 'Inverter values', 'Register',
+ * 'Encoding', 'Function code', …) from all 11 locale files. The i18n preservation set
+ * below therefore tracks only the 8 connection/validation keys that remain. That
+ * removal did NOT touch the value-table / StorEdge backing data (the selectors and the
+ * STOREDGE_CONTROL_REGISTERS map), only the UI rendering + translations — so the Req 3.2
+ * backing-data assertions below are unaffected and still hold.
+ *
  * **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5**
  *
  * METHODOLOGY (observation-first). These tests were written against the UNFIXED code:
@@ -40,6 +49,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { CONFIG_BOUNDS, validateConfig, type ConfigField } from './config-validation';
+import { STOREDGE_CONTROL_REGISTERS, type StorEdgeControlRegisterDef } from './storedge-control-map';
 import {
     getBatteryValueDefs,
     getInverterValueDefs,
@@ -47,7 +57,6 @@ import {
     getValueDefs,
     type SunSpecRegisterDef,
 } from './sunspec-map';
-import { STOREDGE_CONTROL_REGISTERS, type StorEdgeControlRegisterDef } from './storedge-control-map';
 
 // This file lives in <repo>/src/lib — the repo root is two directories up.
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -385,29 +394,19 @@ const LOCALES = ['de', 'en', 'es', 'fr', 'it', 'nl', 'pl', 'pt', 'ru', 'uk', 'zh
 /** The four keys that exist SOLELY for the Test Connection feature (removed by the fix). */
 const TEST_CONNECTION_KEYS = ['Test Connection', 'Testing…', 'Connection successful', 'Connection failed'] as const;
 
-/** Every non-test-connection key (observed, identical across all 11 locales). */
+/**
+ * Every non-test-connection key that still exists in all 11 locales — the 4 connection
+ * labels plus the 4 validation-error messages. The four Test Connection keys were
+ * removed by the `remove-test-connection` spec. The 17 register-table keys that this
+ * set once snapshotted (the SunSpec/StorEdge table labels) were later removed by the
+ * `modbus-register-reference-to-readme` spec when the register reference moved to the
+ * README, so they are intentionally absent here.
+ */
 const NON_TC_KEYS = [
     'Host',
     'Port',
     'Unit ID',
     'Polling interval (s)',
-    'SunSpec Values',
-    'Inverter values',
-    'Meter values',
-    'Battery values',
-    'Name',
-    'Register',
-    'Datatype',
-    'Model',
-    'Description',
-    'No SunSpec values available',
-    'StorEdge Control Block',
-    'Address',
-    'Encoding',
-    'Unit',
-    'Range',
-    'Function code',
-    'No StorEdge control registers available',
     'Invalid host',
     'Invalid port',
     'Invalid unit ID',
