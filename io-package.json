@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "news": {
+      "1.1.1": {
+        "en": "fix size attributes",
+        "de": "fixe Größenmerkmale",
+        "ru": "исправить атрибуты размера",
+        "pt": "fixar atributos",
+        "nl": "Kenmerken van de grootte corrigeren",
+        "fr": "attributs de taille fixe",
+        "it": "attributi fix size",
+        "es": "fijar atributos de tamaño",
+        "pl": "poprawianie atrybutów rozmiaru",
+        "uk": "виправлення атрибутів розміру",
+        "zh-cn": "修复大小属性"
+      },
       "1.1.0": {
         "en": "jsonConfig Migration for Admin UI\nfix Readme.md\nfix JSDoc warnings",
         "de": "JSONConfig-Migration für Admin UI\nfix README.md\nFix JSDoc-Warnungen",
@@ -80,19 +93,6 @@
         "pl": "naprawiono io-package.json\nstałe testy",
         "uk": "виправлений IO-пакет.json\nфіксовані тести",
         "zh-cn": "修复了 io-package.js\n固定测试"
-      },
-      "1.0.15": {
-        "en": "fix Lint errors",
-        "de": "Fix Lint-Fehler",
-        "ru": "исправить ошибки Lint",
-        "pt": "fixe erros Lint",
-        "nl": "Lint-fouten herstellen",
-        "fr": "correction des erreurs Lint",
-        "it": "fix Lint",
-        "es": "corregir errores de Lint",
-        "pl": "naprawić błędy Lint",
-        "uk": "виправлення помилок Lint",
-        "zh-cn": "修复 Lint 错误"
       }
     },
     "titleLang": {

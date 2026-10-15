@@ -1,4 +1,9 @@
 # Older changes
+## 1.0.18 (2026-10-11)
+* reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control
+* document the `remoteControlCommandMode` null behavior in the README
+* fix the `test:ts` glob so the main-module tests actually run
+
 ## 1.0.17 (2026-10-11)
 * fix issues by iobroker review
 
