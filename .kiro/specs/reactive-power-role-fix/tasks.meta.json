@@ -1,0 +1,128 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Counterexample (fast-check, seed: 1138872136, path \"0:0\"): [{\"name\":\"acVAR\",\"model\":101,\"offset\":20,\"length\":1,\"datatype\":\"int16\",\"scaleFactorRef\":\"acVARSF\",\"unit\":\"var\",\"role\":\"power.reactive\",\"iobType\":\"number\",\"description\":\"I_AC_VAR — Reactive Power\"}]\n\nAssertionError: acVAR (power.reactive) role: expected 'value.power' to equal 'value.power.reactive'\n\nBoth exploration tests fail on the UNFIXED code (as expected):\n1) scoped PBT over all power.reactive defs — shrunk to acVAR, observes common.role = 'value.power' instead of 'value.power.reactive'\n2) edge-case iteration over the five expected registers (acVAR, mVAR, mVARA, mVARB, mVARC) — first assertion (acVAR) observes 'value.power' instead of 'value.power.reactive'\n\nRoot cause confirmed: ROLE_MAP['power.reactive'] === 'value.power' in src/lib/state-manager.ts. The set of power.reactive defs is confirmed to be exactly the five expected registers.",
+      "lastRunTimestamp": 1792050121269
+    },
+    "3.2 Verify bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1792050404001
+    },
+    "3.3 Verify preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1792050458752
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035455
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050042277
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050137620
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035554
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050140573
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050264202
+      }
+    ],
+    "3.1 Implement the fix": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035615
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050266996
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050349565
+      }
+    ],
+    "3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035694
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050354346
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050414952
+      }
+    ],
+    "3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035739
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050417939
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050472686
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050035782
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050475782
+      },
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050527456
+      }
+    ],
+    "3. Fix for reactive-power role mapping (power.reactive → value.power.reactive)": [
+      {
+        "executionId": "cb76a784-85d7-42f6-a4b2-5fd8bbe2df51",
+        "chatSessionId": "sess_0a2a0b8f-10e4-4075-989f-4d9fdb9ebf9f",
+        "timestamp": 1792050472746
+      }
+    ]
+  }
+}

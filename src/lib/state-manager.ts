@@ -119,7 +119,7 @@ const ROLE_MAP: Record<SunSpecRole, string> = {
     voltage: 'value.voltage',
     power: 'value.power.active',
     'power.apparent': 'value.power',
-    'power.reactive': 'value.power',
+    'power.reactive': 'value.power.reactive',
     powerFactor: 'value',
     frequency: 'value.frequency',
     energy: 'value.energy',

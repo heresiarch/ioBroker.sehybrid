@@ -38,7 +38,7 @@ const ROLE_MAP = {
   voltage: "value.voltage",
   power: "value.power.active",
   "power.apparent": "value.power",
-  "power.reactive": "value.power",
+  "power.reactive": "value.power.reactive",
   powerFactor: "value",
   frequency: "value.frequency",
   energy: "value.energy",

@@ -846,7 +846,7 @@ describe('state-manager => StateManager', () => {
             voltage: 'value.voltage',
             power: 'value.power.active',
             'power.apparent': 'value.power',
-            'power.reactive': 'value.power',
+            'power.reactive': 'value.power.reactive',
             powerFactor: 'value',
             frequency: 'value.frequency',
             energy: 'value.energy',
@@ -1156,6 +1156,305 @@ describe('state-manager => StateManager', () => {
                 }),
                 { numRuns: 100 },
             );
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // reactive-power-role-fix — Task 1
+    // Property 1: Bug Condition — Reactive Power Uses the Dedicated Role
+    //
+    // These assertions encode the EXPECTED (post-fix) behavior from design
+    // Property 1: every register whose logical role is `power.reactive`
+    // (acVAR, mVAR, mVARA, mVARB, mVARC) SHALL be created with
+    // common.role === 'value.power.reactive'.
+    //
+    // On the UNFIXED code these MUST FAIL — the created role is the imprecise
+    // 'value.power' sourced from ROLE_MAP['power.reactive']. That failure is the
+    // codified counterexample proving the bug exists.
+    //
+    // Scoped deterministically to the five concrete triggering registers rather
+    // than random inputs (the bug is deterministic across the whole set).
+    //
+    // Validates: Requirements 1.1, 1.2, 2.1, 2.2
+    // --------------------------------------------------------------------
+
+    describe('Bug condition (Property 1): reactive power uses the dedicated role value.power.reactive', () => {
+        /** The dedicated ioBroker role for reactive-power quantities (unit var/kVar). */
+        const EXPECTED_REACTIVE_ROLE = 'value.power.reactive';
+
+        /** The exact set of registers expected to carry the logical role `power.reactive`. */
+        const EXPECTED_REACTIVE_NAMES = ['acVAR', 'mVAR', 'mVARA', 'mVARB', 'mVARC'];
+
+        /** Every SUNSPEC_MAP value def whose logical role is `power.reactive`. */
+        const reactivePowerDefs = allValueDefs.filter(d => d.role === 'power.reactive');
+
+        /**
+         * Resolve the created state common for an id, asserting the object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        // Scoped PBT: the bug is deterministic, so the property is asserted over the
+        // concrete failing set (every power.reactive def) rather than random inputs.
+        it('creates common.role=value.power.reactive for every power.reactive register (acVAR, mVAR, mVARA, mVARB, mVARC)', async () => {
+            await fc.assert(
+                fc.asyncProperty(fc.constantFrom(...reactivePowerDefs), async def => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+                    const channel = channelForDef(def);
+
+                    await manager.ensureState(channel, def);
+
+                    const common = commonFor(adapter, `${channel}.${def.name}`);
+                    expect(common.role, `${def.name} (power.reactive) role`).to.equal(EXPECTED_REACTIVE_ROLE);
+                }),
+                { numRuns: 100 },
+            );
+        });
+
+        // Edge-case iteration: the set of power.reactive defs is EXACTLY the five
+        // expected registers, and ALL of them are affected (none is already fixed).
+        it('affects exactly the five expected power.reactive registers and no others', async () => {
+            const actualNames = reactivePowerDefs.map(d => d.name).sort();
+            expect(actualNames, 'the power.reactive defs must be exactly the five expected registers').to.deep.equal(
+                [...EXPECTED_REACTIVE_NAMES].sort(),
+            );
+
+            for (const def of reactivePowerDefs) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                const channel = channelForDef(def);
+
+                await manager.ensureState(channel, def);
+
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.role, `${def.name} (power.reactive) role`).to.equal(EXPECTED_REACTIVE_ROLE);
+            }
+        });
+    });
+
+    // --------------------------------------------------------------------
+    // reactive-power-role-fix — Task 2
+    // Property 2: Preservation — All Non-Reactive Roles and Non-Role
+    // Metadata Unchanged.
+    //
+    // OBSERVATION-FIRST: every expectation below encodes behavior observed on
+    // the CURRENT UNFIXED code, so these tests MUST PASS now and must continue
+    // to hold after the single ROLE_MAP['power.reactive'] edit. They pin the
+    // baseline the fix must NOT disturb:
+    //   - power.apparent stays value.power (there is no value.power.apparent).
+    //   - power (active) stays value.power.active.
+    //   - every other logical role keeps its exact pre-fix common.role.
+    //   - the reactive-power states keep all non-role metadata
+    //     (name/type/unit/read/write) exactly.
+    //   - the nine StorEdgeControlBlock states keep their
+    //     STOREDGE_CONTROL_ROLE_MAP roles (sourced from a separate map,
+    //     unaffected by ROLE_MAP).
+    //
+    // NOTE: the `'power.reactive'` entry in EXPECTED_PREFIX_ROLE reflects the
+    // corrected mapping `'value.power.reactive'` — but reactive-power defs are
+    // EXCLUDED from the role-preservation property (they are the thing the fix
+    // changes). Only non-reactive roles are asserted for role preservation;
+    // reactive-power defs are asserted for non-role-metadata preservation only.
+    //
+    // Validates: Requirements 3.1, 3.2, 3.3, 3.4
+    // --------------------------------------------------------------------
+
+    describe('Preservation (Property 2): non-reactive roles and reactive non-role metadata unchanged', () => {
+        /**
+         * Pre-fix `common.role` observed on the UNFIXED code for every logical
+         * SunSpec role. All of these must be preserved by the fix EXCEPT
+         * `power.reactive` (which the fix changes); reactive-power defs are
+         * therefore excluded from the role-preservation property below.
+         */
+        const EXPECTED_PREFIX_ROLE: Record<string, string> = {
+            current: 'value.current',
+            voltage: 'value.voltage',
+            power: 'value.power.active',
+            'power.apparent': 'value.power',
+            'power.reactive': 'value.power.reactive', // corrected mapping; excluded from preservation assertions
+            powerFactor: 'value',
+            frequency: 'value.frequency',
+            energy: 'value.energy',
+            temperature: 'value.temperature',
+            percent: 'value.fill',
+            status: 'value',
+            info: 'value',
+        };
+
+        /** The nine StorEdgeControlBlock roles sourced from STOREDGE_CONTROL_ROLE_MAP (not ROLE_MAP). */
+        const EXPECTED_STOREDGE_ROLE: Record<string, string> = {
+            storageControlMode: 'level',
+            storageAcChargePolicy: 'level',
+            storageAcChargeLimit: 'level',
+            storageBackupReservedSetting: 'level.fill',
+            storageChargeDischargeDefaultMode: 'level',
+            remoteControlCommandTimeout: 'level.timer',
+            remoteControlCommandMode: 'level',
+            remoteControlChargeLimit: 'level',
+            remoteControlDischargeLimit: 'level',
+        };
+
+        /**
+         * Resolve the created state common for an id, asserting the object exists.
+         *
+         * @param adapter
+         * @param id
+         */
+        function commonFor(adapter: MockAdapter, id: string): ioBroker.StateCommon {
+            const obj = adapter.objects.get(id);
+            expect(obj, `${id} object`).to.not.equal(undefined);
+            expect(obj!.type).to.equal('state');
+            return obj!.common as ioBroker.StateCommon;
+        }
+
+        /**
+         * Every SunSpec value def (inverter/meter + battery) paired with the
+         * channel it is created under. Mirrors the production routing.
+         */
+        const sunspecCases: { channel: ChannelPath; def: SunSpecRegisterDef }[] = [
+            ...allValueDefs.map(def => ({ channel: channelForDef(def), def })),
+            ...allBatteryValueDefs.map((def): { channel: ChannelPath; def: SunSpecRegisterDef } => ({
+                channel: 'battery.1',
+                def,
+            })),
+        ];
+
+        /** Every reactive-power value def (role === 'power.reactive'). */
+        const reactivePowerCases = sunspecCases.filter(c => c.def.role === 'power.reactive');
+
+        // ----------------------------------------------------------------
+        // Req 3.1, 3.2, 3.3 — every NON-reactive role keeps its exact pre-fix
+        // common.role. PBT over all SUNSPEC_MAP (+ battery) value defs.
+        // ----------------------------------------------------------------
+        it('preserves the pre-fix common.role of every def whose role is not power.reactive (Req 3.1, 3.2, 3.3)', async () => {
+            const nonReactiveCases = sunspecCases.filter(c => c.def.role !== 'power.reactive');
+
+            // Sanity: the representative preserved roles are actually exercised.
+            expect(
+                nonReactiveCases.some(c => c.def.role === 'power.apparent'),
+                'apparent power exercised',
+            ).to.equal(true);
+            expect(
+                nonReactiveCases.some(c => c.def.role === 'power'),
+                'active power exercised',
+            ).to.equal(true);
+            expect(
+                nonReactiveCases.some(c => c.def.name === 'acPower'),
+                'acPower exercised',
+            ).to.equal(true);
+
+            await fc.assert(
+                fc.asyncProperty(fc.constantFrom(...nonReactiveCases), async ({ channel, def }) => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+
+                    await manager.ensureState(channel, def);
+
+                    const common = commonFor(adapter, `${channel}.${def.name}`);
+                    const expected = EXPECTED_PREFIX_ROLE[def.role];
+                    expect(expected, `pre-fix role known for ${def.role}`).to.not.equal(undefined);
+                    expect(common.role, `${def.name} (${def.role}) role`).to.equal(expected);
+                }),
+                { numRuns: 200 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.1 — apparent power preserved (explicit representative check)
+        // ----------------------------------------------------------------
+        it('preserves value.power for all power.apparent states (acVA, mVA, mVAA, mVAB, mVAC) (Req 3.1)', async () => {
+            const apparentCases = sunspecCases.filter(c => c.def.role === 'power.apparent');
+            const apparentNames = apparentCases.map(c => c.def.name).sort();
+            expect(apparentNames, 'the power.apparent defs must be exactly the five expected registers').to.deep.equal(
+                ['acVA', 'mVA', 'mVAA', 'mVAB', 'mVAC'].sort(),
+            );
+
+            for (const { channel, def } of apparentCases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.role, `${def.name} (power.apparent) role`).to.equal('value.power');
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.2 — active power preserved (explicit representative check)
+        // ----------------------------------------------------------------
+        it('preserves value.power.active for all active-power states (Req 3.2)', async () => {
+            const activeCases = sunspecCases.filter(c => c.def.role === 'power');
+            expect(activeCases.length, 'at least one active-power def exercised').to.be.greaterThan(0);
+            expect(
+                activeCases.some(c => c.def.name === 'acPower'),
+                'acPower exercised',
+            ).to.equal(true);
+
+            for (const { channel, def } of activeCases) {
+                const adapter = new MockAdapter();
+                const manager = new StateManager(adapter);
+                await manager.ensureState(channel, def);
+                const common = commonFor(adapter, `${channel}.${def.name}`);
+                expect(common.role, `${def.name} (power) role`).to.equal('value.power.active');
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.4 — reactive-power non-role metadata invariant.
+        // PBT over every power.reactive def: name/type/unit/read/write are the
+        // observed baseline (number / var / true / false) and the def's own name.
+        // ----------------------------------------------------------------
+        it('preserves name/type/unit/read/write for every power.reactive state (Req 3.4)', async () => {
+            // Sanity: the five reactive-power registers are the ones exercised.
+            const reactiveNames = reactivePowerCases.map(c => c.def.name).sort();
+            expect(reactiveNames, 'reactive-power defs are exactly the five expected registers').to.deep.equal(
+                ['acVAR', 'mVAR', 'mVARA', 'mVARB', 'mVARC'].sort(),
+            );
+
+            await fc.assert(
+                fc.asyncProperty(fc.constantFrom(...reactivePowerCases), async ({ channel, def }) => {
+                    const adapter = new MockAdapter();
+                    const manager: IStateManager = new StateManager(adapter);
+
+                    await manager.ensureState(channel, def);
+
+                    const common = commonFor(adapter, `${channel}.${def.name}`);
+                    expect(common.name, `${def.name} name`).to.equal(def.name);
+                    expect(common.type, `${def.name} type`).to.equal('number');
+                    expect(common.unit, `${def.name} unit`).to.equal('var');
+                    expect(common.read, `${def.name} read`).to.equal(true);
+                    expect(common.write, `${def.name} write`).to.equal(false);
+                }),
+                { numRuns: 100 },
+            );
+        });
+
+        // ----------------------------------------------------------------
+        // Req 3.3 — the nine StorEdgeControlBlock states keep their
+        // STOREDGE_CONTROL_ROLE_MAP roles (separate map, unaffected by the fix).
+        // ----------------------------------------------------------------
+        it('keeps the nine StorEdgeControlBlock states on their STOREDGE_CONTROL_ROLE_MAP roles (Req 3.3)', async () => {
+            const adapter = new MockAdapter();
+            const manager = new StateManager(adapter);
+            await manager.ensureStorEdgeControlBlock();
+
+            // The exercised set is exactly the nine expected controls.
+            const names = STOREDGE_CONTROL_REGISTERS.map(d => d.name).sort();
+            expect(names, 'exactly nine StorEdgeControlBlock controls').to.deep.equal(
+                Object.keys(EXPECTED_STOREDGE_ROLE).sort(),
+            );
+
+            for (const def of STOREDGE_CONTROL_REGISTERS) {
+                const common = commonFor(adapter, `StorEdgeControlBlock.${def.name}`);
+                expect(common.role, `${def.name} StorEdge role`).to.equal(EXPECTED_STOREDGE_ROLE[def.name]);
+            }
         });
     });
 });
