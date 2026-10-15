@@ -142,6 +142,11 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### WORK IN PROGRESS ###
+* fix vite watch config
+* fix reactive power roles
+
+
 ### 1.0.18 (2026-10-11)
 * reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control
 * document the `remoteControlCommandMode` null behavior in the README
