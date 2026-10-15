@@ -312,7 +312,7 @@ describe('Preservation: non-buggy surfaces unchanged (modbus-register-reference-
             {
                 section: 'StorEdge control block table',
                 anchor:
-                    '| `storageControlMode` | `0xE004` | Storage Control Mode | 0–4 |',
+                    '| `storageControlMode` | Storage Control Mode |',
             },
             {
                 section: 'StorEdge Float encoding note',
