@@ -27,7 +27,6 @@ var import_modbus_client = require("./lib/modbus-client");
 var import_state_manager = require("./lib/state-manager");
 var import_storedge_control_map = require("./lib/storedge-control-map");
 var import_sunspec_decode = require("./lib/sunspec-decode");
-var import_sunspec_map = require("./lib/sunspec-map");
 var import_sunspec_reader = require("./lib/sunspec-reader");
 const MAX_CONSECUTIVE_FAILURES = 10;
 const STOREDGE_BLOCK_SPAN_A_BASE = 57348;
@@ -68,7 +67,6 @@ class Sehybrid extends utils.Adapter {
       name: "sehybrid"
     });
     this.on("ready", this.onReady.bind(this));
-    this.on("message", this.onMessage.bind(this));
     this.on("unload", this.onUnload.bind(this));
     this.on("stateChange", this.onStateChange.bind(this));
   }
@@ -292,79 +290,6 @@ class Sehybrid extends utils.Adapter {
       }
     } finally {
       this.polling = false;
-    }
-  }
-  /**
-   * Handle admin message-box requests. Currently supports `testConnection`, which
-   * validates the supplied endpoint and probes the SunSpec identity block without
-   * touching the running poll connection (Req 2.2, 2.3, 2.4, 2.5).
-   *
-   * @param obj - Incoming message; a reply is only sent when `obj.callback` is set.
-   */
-  onMessage(obj) {
-    if (typeof obj !== "object" || !obj.message) {
-      return;
-    }
-    if (obj.command === "testConnection") {
-      void this.handleTestConnection(obj);
-    }
-  }
-  /**
-   * Validate the endpoint from the message and probe the SunSpec Common block.
-   *
-   * Validation failures reply `validationError` within 1 s without opening a socket
-   * (Req 2.4). Otherwise a temporary Modbus client connects within 10 s, reads the
-   * identity block, and the socket is always closed afterwards (Req 2.2, 2.3, 2.5).
-   *
-   * @param obj - The `testConnection` message; a reply is sent when `obj.callback` is set.
-   */
-  async handleTestConnection(obj) {
-    var _a;
-    const reply = (response) => {
-      if (obj.callback) {
-        this.sendTo(obj.from, obj.command, response, obj.callback);
-      }
-    };
-    const msg = (_a = obj.message) != null ? _a : {};
-    const host = typeof msg.host === "string" ? msg.host : "";
-    const port = typeof msg.port === "number" ? msg.port : Number(msg.port);
-    const unitId = typeof msg.unitId === "number" ? msg.unitId : Number(msg.unitId);
-    const result = (0, import_config_validation.validateConfig)({ host, port, unitId, pollInterval: 30 });
-    const relevantErrors = Object.entries(result.errors).filter(([field]) => field !== "pollInterval");
-    if (relevantErrors.length > 0) {
-      const message = relevantErrors.map(([field, err]) => `${field}: ${err}`).join("; ");
-      reply({ result: "validationError", message });
-      return;
-    }
-    const client = new import_modbus_client.ModbusClient();
-    try {
-      await client.connect(host, port, unitId, import_modbus_client.DEFAULT_TIMEOUT_MS);
-      const idWords = await client.readHoldingRegisters(import_sunspec_map.COMMON_BASE, 2);
-      const sunsId = (0, import_sunspec_decode.decodeRegisters)(idWords, "uint32");
-      if (sunsId !== 1400204883) {
-        reply({
-          result: "failure",
-          message: `Device at ${host}:${port} did not return a SunSpec identifier`
-        });
-        return;
-      }
-      const manuWords = await client.readHoldingRegisters(import_sunspec_map.COMMON_BASE + 4, 16);
-      const modelWords = await client.readHoldingRegisters(import_sunspec_map.COMMON_BASE + 20, 16);
-      const manufacturer = (0, import_sunspec_decode.decodeRegisters)(manuWords, "string");
-      const model = (0, import_sunspec_decode.decodeRegisters)(modelWords, "string");
-      reply({
-        result: "success",
-        manufacturer: typeof manufacturer === "string" ? manufacturer : "",
-        model: typeof model === "string" ? model : ""
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      reply({ result: "failure", message });
-    } finally {
-      try {
-        await client.close();
-      } catch {
-      }
     }
   }
   /**

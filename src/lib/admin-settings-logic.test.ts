@@ -12,18 +12,17 @@
  * Instead, these tests exercise the component's *decision logic* through the exact
  * shared, pure modules `admin/src/components/settings.tsx` consumes:
  *   - `validateConfig` from `./config-validation` — drives per-field error display
- *     and gates (disables) the Test Connection button (Req 1.6–1.9, 2.1, 5.2).
+ *     (Req 1.6–1.9, 5.2).
  *   - `getValueDefs` from `./sunspec-map` — the read-only backing data for the
  *     SunSpec value table, including the empty-map indication (Req 4.4, 4.5).
  * The assertions mirror how the component uses these functions:
  *   - `render()` computes `errors = validateConfig(currentConfig()).errors` and
- *     `anyInvalid = Object.keys(errors).length > 0`, passing `disabled={anyInvalid ...}`
- *     to the Test Connection <Button> and `error={!!errors.<field>}` to each field.
+ *     `anyInvalid = Object.keys(errors).length > 0`, passing `error={!!errors.<field>}`
+ *     to each field.
  *   - `renderValueTable()` computes `defs = getValueDefs()` and shows the
  *     "No SunSpec values available" cell when `defs.length === 0`.
- *   - `onTestConnection()` sends `{ host, port, unitId }` via `sendTo('testConnection', ...)`.
  *
- * Traceability: Req 1.6, 1.7, 1.8, 1.9, 2.1, 4.4, 4.5, 5.2.
+ * Traceability: Req 1.6, 1.7, 1.8, 1.9, 4.4, 4.5, 5.2.
  */
 
 import { expect } from 'chai';
@@ -40,12 +39,11 @@ import {
 // and hands to validateConfig on every render.
 type FormConfig = Partial<ioBroker.AdapterConfig>;
 
-// Mirrors Settings.render(): errors -> per-field error flags + button gate.
+// Mirrors Settings.render(): errors -> per-field error flags.
 function formDecision(cfg: FormConfig): {
     errors: ReturnType<typeof validateConfig>['errors'];
     fieldError: (f: 'host' | 'port' | 'unitId' | 'pollInterval') => boolean;
     anyInvalid: boolean;
-    testButtonDisabled: boolean;
 } {
     const errors = validateConfig(cfg).errors;
     const anyInvalid = Object.keys(errors).length > 0;
@@ -53,9 +51,6 @@ function formDecision(cfg: FormConfig): {
         errors,
         fieldError: f => !!errors[f],
         anyInvalid,
-        // The component also factors in `testing` and `socketAvailable`; here we
-        // isolate the validation-driven part of the gate (socket present, idle).
-        testButtonDisabled: anyInvalid,
     };
 }
 
@@ -107,31 +102,6 @@ describe('admin settings logic (task 11.4)', () => {
             expect(d.fieldError('unitId')).to.equal(false);
             expect(d.fieldError('pollInterval')).to.equal(false);
             expect(d.anyInvalid).to.equal(false);
-        });
-    });
-
-    // ---------------------------------------------------------------------
-    // Test Connection button presence/behavior (Req 2.1).
-    // The button is disabled while the config is invalid and enabled when
-    // valid; when clicked it sends { host, port, unitId } to testConnection.
-    // ---------------------------------------------------------------------
-    describe('Test Connection button gating and request contract (Req 2.1)', () => {
-        it('Req 2.1: button is disabled while the config is invalid', () => {
-            expect(formDecision({ ...VALID_CONFIG, host: '' }).testButtonDisabled).to.equal(true);
-        });
-
-        it('Req 2.1: button is enabled (not gated by validation) when the config is valid', () => {
-            expect(formDecision(VALID_CONFIG).testButtonDisabled).to.equal(false);
-        });
-
-        it('Req 2.1: the testConnection request carries exactly { host, port, unitId }', () => {
-            // Mirrors onTestConnection(): only these three fields are sent (no pollInterval).
-            const cfg = VALID_CONFIG;
-            const request = { host: cfg.host, port: cfg.port, unitId: cfg.unitId };
-            expect(Object.keys(request).sort()).to.deep.equal(['host', 'port', 'unitId']);
-            expect(request.host).to.equal('inverter.local');
-            expect(request.port).to.equal(502);
-            expect(request.unitId).to.equal(1);
         });
     });
 

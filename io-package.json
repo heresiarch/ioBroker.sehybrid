@@ -146,7 +146,6 @@
     "mode": "daemon",
     "type": "energy",
     "compact": true,
-    "messagebox": true,
     "connectionType": "local",
     "dataSource": "poll",
     "adminUI": {

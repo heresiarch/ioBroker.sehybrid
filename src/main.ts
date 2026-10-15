@@ -15,7 +15,6 @@ import {
     type StorEdgeControlRegisterDef,
 } from './lib/storedge-control-map';
 import { decodeRegisters, encodeFloat32le, encodeUint32le } from './lib/sunspec-decode';
-import { COMMON_BASE } from './lib/sunspec-map';
 import { SunSpecReader, type Logger } from './lib/sunspec-reader';
 
 /**
@@ -101,7 +100,6 @@ class Sehybrid extends utils.Adapter {
             name: 'sehybrid',
         });
         this.on('ready', this.onReady.bind(this));
-        this.on('message', this.onMessage.bind(this));
         this.on('unload', this.onUnload.bind(this));
         // Bound so the StorEdgeControlBlock subscription (registered in onReady) has
         // a handler.
@@ -410,92 +408,6 @@ class Sehybrid extends utils.Adapter {
             }
         } finally {
             this.polling = false;
-        }
-    }
-
-    /**
-     * Handle admin message-box requests. Currently supports `testConnection`, which
-     * validates the supplied endpoint and probes the SunSpec identity block without
-     * touching the running poll connection (Req 2.2, 2.3, 2.4, 2.5).
-     *
-     * @param obj - Incoming message; a reply is only sent when `obj.callback` is set.
-     */
-    private onMessage(obj: ioBroker.Message): void {
-        if (typeof obj !== 'object' || !obj.message) {
-            return;
-        }
-        if (obj.command === 'testConnection') {
-            void this.handleTestConnection(obj);
-        }
-    }
-
-    /**
-     * Validate the endpoint from the message and probe the SunSpec Common block.
-     *
-     * Validation failures reply `validationError` within 1 s without opening a socket
-     * (Req 2.4). Otherwise a temporary Modbus client connects within 10 s, reads the
-     * identity block, and the socket is always closed afterwards (Req 2.2, 2.3, 2.5).
-     *
-     * @param obj - The `testConnection` message; a reply is sent when `obj.callback` is set.
-     */
-    private async handleTestConnection(obj: ioBroker.Message): Promise<void> {
-        const reply = (response: Record<string, unknown>): void => {
-            if (obj.callback) {
-                this.sendTo(obj.from, obj.command, response, obj.callback);
-            }
-        };
-
-        const msg = (obj.message ?? {}) as { host?: unknown; port?: unknown; unitId?: unknown };
-        const host = typeof msg.host === 'string' ? msg.host : '';
-        const port = typeof msg.port === 'number' ? msg.port : Number(msg.port);
-        const unitId = typeof msg.unitId === 'number' ? msg.unitId : Number(msg.unitId);
-
-        // Validate host/port/unitId only; supply a valid pollInterval so it never
-        // blocks the connection test (pollInterval is irrelevant here) (Req 2.4).
-        const result = validateConfig({ host, port, unitId, pollInterval: 30 });
-        const relevantErrors = Object.entries(result.errors).filter(([field]) => field !== 'pollInterval');
-        if (relevantErrors.length > 0) {
-            const message = relevantErrors.map(([field, err]) => `${field}: ${err}`).join('; ');
-            reply({ result: 'validationError', message });
-            return;
-        }
-
-        const client = new ModbusClient();
-        try {
-            await client.connect(host, port, unitId, DEFAULT_TIMEOUT_MS);
-
-            // Read the SunSpec identifier ("SunS") plus manufacturer/model identity.
-            const idWords = await client.readHoldingRegisters(COMMON_BASE, 2);
-            const sunsId = decodeRegisters(idWords, 'uint32');
-            // 0x53756e53 == "SunS": the SunSpec well-known marker.
-            if (sunsId !== 0x53756e53) {
-                reply({
-                    result: 'failure',
-                    message: `Device at ${host}:${port} did not return a SunSpec identifier`,
-                });
-                return;
-            }
-
-            const manuWords = await client.readHoldingRegisters(COMMON_BASE + 4, 16);
-            const modelWords = await client.readHoldingRegisters(COMMON_BASE + 20, 16);
-            const manufacturer = decodeRegisters(manuWords, 'string');
-            const model = decodeRegisters(modelWords, 'string');
-
-            reply({
-                result: 'success',
-                manufacturer: typeof manufacturer === 'string' ? manufacturer : '',
-                model: typeof model === 'string' ? model : '',
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            reply({ result: 'failure', message });
-        } finally {
-            // Always release the temporary socket (Req 2.5).
-            try {
-                await client.close();
-            } catch {
-                /* best-effort: ignore close errors */
-            }
         }
     }
 

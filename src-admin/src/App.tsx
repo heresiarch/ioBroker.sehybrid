@@ -83,9 +83,6 @@ class App extends GenericApp {
                         <Settings
                             native={this.state.native}
                             onChange={(attr: string, value: unknown) => this.updateNativeValue(attr, value)}
-                            socket={this.socket}
-                            adapterName={this.adapterName}
-                            instance={this.instance}
                             theme={this.state.theme}
                         />
                         {this.renderError()}

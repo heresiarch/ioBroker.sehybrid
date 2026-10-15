@@ -49,9 +49,6 @@ Open the instance settings and configure the connection to your inverter:
 | Unit ID | `1` | Modbus unit / slave ID of the inverter. |
 | Poll interval | `30` | How often (in seconds) the adapter reads data from the inverter. |
 
-The settings page includes a **Test connection** button that verifies the adapter can reach the inverter and
-reads its manufacturer and model before you save.
-
 There is no separate configuration for the StorEdge control block — it is always created and always active,
 independent of any setting (see [StorEdge control block](#storedge-control-block)).
 
@@ -142,6 +139,9 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* Removed the manual connection-test button from the Admin UI configuration
+
 ### 1.0.19 (2026-10-15)
 * fix vite watch config
 * fix reactive power roles

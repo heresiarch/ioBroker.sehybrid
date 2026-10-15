@@ -13,9 +13,6 @@
  *        |
  *   StateManager  -->  MockAdapter (records ensured objects + acked writes)
  *
- * plus a direct test of the adapter's `testConnection` probe logic (mirrored inline
- * so no controller is required).
- *
  * Runs under the working `test:ts` pipeline (mocha + ts-node over `src/**\/*.test.ts`).
  *
  * Requirements covered:
@@ -27,7 +24,6 @@
 import { expect } from 'chai';
 import ModbusRTU from 'modbus-serial';
 
-import { validateConfig } from './config-validation';
 import { ModbusClient } from './modbus-client';
 import { StateManager, type StateManagerAdapter } from './state-manager';
 import { findStorEdgeControlDef, STOREDGE_CONTROL_REGISTERS } from './storedge-control-map';
@@ -753,106 +749,6 @@ describe('Feature: solaredge-sunspec-reader, integration: multiple meters + batt
         // maxDischargePeakPower sits at 0xE14A, inside the region batch 2 reads across
         // the internal gap — it must now decode and publish a state (seeded generically).
         expect(hasStatePrefix('battery.1.maxDischargePeakPower'), 'gap-spanning def present').to.equal(true);
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Task 13.2 — testConnection behavior
-// ---------------------------------------------------------------------------
-
-/**
- * Mirror of the adapter's `handleTestConnection` probe (main.ts) without the
- * ioBroker message box. Returns the same response shape the handler replies with.
- *
- * @param host
- * @param port
- * @param unitId
- */
-async function probeTestConnection(host: string, port: number, unitId: number): Promise<Record<string, unknown>> {
-    // Validate host/port/unitId only (pollInterval irrelevant here) (Req 2.4).
-    const result = validateConfig({ host, port, unitId, pollInterval: 30 });
-    const relevantErrors = Object.entries(result.errors).filter(([field]) => field !== 'pollInterval');
-    if (relevantErrors.length > 0) {
-        const message = relevantErrors.map(([field, err]) => `${field}: ${err}`).join('; ');
-        return { result: 'validationError', message };
-    }
-
-    const client = new ModbusClient();
-    try {
-        await client.connect(host, port, unitId, 10000);
-        const idWords = await client.readHoldingRegisters(COMMON_BASE, 2);
-        const sunsId = decodeRegisters(idWords, 'uint32');
-        if (sunsId !== 0x53756e53) {
-            return { result: 'failure', message: `Device at ${host}:${port} did not return a SunSpec identifier` };
-        }
-        const manuWords = await client.readHoldingRegisters(COMMON_BASE + 4, 16);
-        const modelWords = await client.readHoldingRegisters(COMMON_BASE + 20, 16);
-        const manufacturer = decodeRegisters(manuWords, 'string');
-        const model = decodeRegisters(modelWords, 'string');
-        return {
-            result: 'success',
-            manufacturer: typeof manufacturer === 'string' ? manufacturer : '',
-            model: typeof model === 'string' ? model : '',
-        };
-    } catch (error) {
-        return { result: 'failure', message: error instanceof Error ? error.message : String(error) };
-    } finally {
-        try {
-            await client.close();
-        } catch {
-            /* ignore */
-        }
-    }
-}
-
-describe('Feature: solaredge-sunspec-reader, integration: testConnection', () => {
-    let server: MockServer | undefined;
-    const port = allocPort();
-
-    before(async function () {
-        this.timeout(15000);
-        server = await startServer(seedDevice().store, port);
-    });
-
-    after(async function () {
-        this.timeout(15000);
-        await closeServer(server);
-    });
-
-    it('reports success against a reachable SunSpec device and decodes manufacturer/model (Req 2.2, 2.5)', async function () {
-        this.timeout(15000);
-        const res = await probeTestConnection(HOST, port, 1);
-        expect(res.result).to.equal('success');
-        expect(res.manufacturer).to.equal('SolarEdge');
-        expect(res.model).to.equal('SE5000');
-    });
-
-    it('reports failure when the endpoint is unreachable within the timeout (Req 2.3)', async function () {
-        this.timeout(15000);
-        // A high port with no listener: connect rejects; no throw escapes.
-        const deadPort = allocPort();
-        const res = await probeTestConnection(HOST, deadPort, 1);
-        expect(res.result).to.equal('failure');
-        expect(res.message).to.be.a('string');
-    });
-
-    it('reports validationError for a bad config without attempting a socket, within ~1s (Req 2.4)', async function () {
-        this.timeout(2000);
-        const start = Date.now();
-        // host '' / port 0 / unitId 300 are all invalid.
-        const res = await probeTestConnection('', 0, 300);
-        const elapsed = Date.now() - start;
-        expect(res.result).to.equal('validationError');
-        expect(res.message).to.be.a('string');
-        // No TCP attempt means this returns effectively immediately.
-        expect(elapsed).to.be.lessThan(1000);
-
-        // Cross-check the pure validator reports the offending fields.
-        const v = validateConfig({ host: '', port: 0, unitId: 300, pollInterval: 30 });
-        expect(v.valid).to.equal(false);
-        expect(v.errors).to.have.property('host');
-        expect(v.errors).to.have.property('port');
-        expect(v.errors).to.have.property('unitId');
     });
 });
 

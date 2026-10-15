@@ -1,0 +1,247 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test — Test-Connection artifacts present": {
+      "status": "passed",
+      "lastRunTimestamp": 1792081295914
+    },
+    "3.9 Verify bug condition exploration test now passes": {
+      "status": "failed",
+      "failingExample": "Counterexample: [{\"id\":\"README.md: Test connection button paragraph\",\"file\":\"README.md\",\"probe\":/Test connection/i}]\n\nAssertion: test-connection artifact still present: README.md: Test connection button paragraph (in README.md): expected true to equal false\n\nRoot cause: README.md line 143 (Changelog > WORK IN PROGRESS) contains the entry \"* Remove Test Connection Button in Admin UI\". The test's case-insensitive probe /Test connection/i matches the substring \"Test Connection\" in that changelog line. The actual Test-connection button *paragraph* (the descriptive body text) was removed by task 3.7, but this newly added changelog line re-introduces the matched string. All other probed artifacts (Settings.tsx, main.ts, io-package.json, 11 locale files, test files) are absent — README is the sole counterexample.",
+      "lastRunTimestamp": 1792080980593
+    },
+    "2. Write preservation property tests (BEFORE implementing fix) — Non-test-connection behavior": {
+      "status": "passed",
+      "lastRunTimestamp": 1792081296791
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test — Test-Connection artifacts present": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954372
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079961983
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080112647
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix) — Non-test-connection behavior": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954452
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080116155
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080323637
+      }
+    ],
+    "3.1 Re-run the message-consumer audit (gate for shared-machinery removal)": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954540
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080327311
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080391634
+      }
+    ],
+    "3.2 Remove test-connection members from `src-admin/src/components/Settings.tsx`": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954623
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080398149
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080510681
+      }
+    ],
+    "3.3 Update `src-admin/src/components/App.tsx` to stop passing removed props": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954702
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080515600
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080552245
+      }
+    ],
+    "3.4 Remove test-connection backend from `src/main.ts`": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954767
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080555714
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080632988
+      }
+    ],
+    "3.5 Remove `\"messagebox\": true` from `io-package.json`": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954843
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080636298
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080665872
+      }
+    ],
+    "3.6 Remove the four i18n keys from all locale files": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954914
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080669319
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080736156
+      }
+    ],
+    "3.7 Remove the Test-connection paragraph from `README.md`": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954951
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080741627
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080775407
+      }
+    ],
+    "3.8 Clean up test files": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079954994
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080778694
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080938770
+      }
+    ],
+    "3.9 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079955036
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792080942244
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081040919
+      }
+    ],
+    "3.10 Verify preservation tests still pass": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079955081
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081044676
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081092831
+      }
+    ],
+    "4. Checkpoint — Ensure all tests pass and no orphaned references remain": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792079955129
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081096635
+      },
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081392971
+      }
+    ],
+    "3. Fix — remove the Test Connection feature and its orphaned surface": [
+      {
+        "executionId": "3f442a28-d2ed-4096-ab84-48c9164aba74",
+        "chatSessionId": "sess_018cce56-e013-43a5-bd31-480fd7fd730e",
+        "timestamp": 1792081092901
+      }
+    ]
+  }
+}

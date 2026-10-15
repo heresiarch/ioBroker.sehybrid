@@ -1,7 +1,7 @@
 // Pure, shared configuration validation for the SolarEdge SunSpec reader.
 //
-// Used by both the adapter (on start and in the `testConnection` message handler)
-// and the admin form. This module intentionally has no ioBroker/adapter imports so
+// Used by both the adapter (on start) and the admin form. This module intentionally
+// has no ioBroker/adapter imports so
 // it stays a pure function and is easy to property-test (design Property 5).
 //
 // Validates: Requirements 1.1, 1.2, 1.4, 2.4, 5.1

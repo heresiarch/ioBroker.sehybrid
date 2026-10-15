@@ -1,8 +1,6 @@
 import React from 'react';
 
 import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
 import TableHead from '@mui/material/TableHead';
@@ -15,7 +13,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-import { I18n, type AdminConnection, type IobTheme } from '@iobroker/gui-components';
+import { I18n, type IobTheme } from '@iobroker/gui-components';
 
 // Shared, pure config validation reused by the adapter and this admin form.
 // We import the SAME validateConfig / sunspec helpers from the adapter's src/lib
@@ -66,23 +64,6 @@ const styles: Record<string, React.CSSProperties> = {
     controlElement: {
         marginBottom: 5,
     },
-    button: {
-        marginTop: 16,
-    },
-    status: {
-        marginTop: 12,
-        display: 'flex',
-        alignItems: 'center',
-    },
-    statusText: {
-        marginLeft: 10,
-    },
-    success: {
-        color: '#2e7d32',
-    },
-    failure: {
-        color: '#c62828',
-    },
     tableWrapper: {
         marginTop: 24,
         maxWidth: '100%',
@@ -97,39 +78,15 @@ const styles: Record<string, React.CSSProperties> = {
     },
 };
 
-type TestConnectionResponse =
-    | { result: 'success'; manufacturer?: string; model?: string }
-    | { result: 'validationError'; message: string }
-    | { result: 'failure'; message: string };
-
 interface SettingsProps {
     native: Record<string, any>;
 
     onChange: (attr: string, value: any) => void;
 
-    // Wired from App (GenericApp) so the Test Connection button can use sendTo.
-    socket?: AdminConnection;
-    adapterName?: string;
-    instance?: number;
     theme?: IobTheme;
 }
 
-type TestStatus =
-    | { kind: 'idle' }
-    | { kind: 'testing' }
-    | { kind: 'success'; manufacturer?: string; model?: string }
-    | { kind: 'failure'; message: string };
-
-interface SettingsState {
-    testStatus: TestStatus;
-}
-
-class Settings extends React.Component<SettingsProps, SettingsState> {
-    constructor(props: SettingsProps) {
-        super(props);
-        this.state = { testStatus: { kind: 'idle' } };
-    }
-
+class Settings extends React.Component<SettingsProps> {
     /**
      * Coerce a raw native field value to a number for numeric config fields.
      *
@@ -194,85 +151,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                 margin="normal"
             />
         );
-    }
-
-    private async onTestConnection(): Promise<void> {
-        const { socket, adapterName, instance } = this.props;
-        if (!socket || !adapterName || instance === undefined || instance === null) {
-            this.setState({
-                testStatus: { kind: 'failure', message: I18n.t('Connection failed') },
-            });
-            return;
-        }
-
-        const cfg = this.currentConfig();
-        this.setState({ testStatus: { kind: 'testing' } });
-
-        try {
-            const response = (await socket.sendTo(`${adapterName}.${instance}`, 'testConnection', {
-                host: cfg.host,
-                port: cfg.port,
-                unitId: cfg.unitId,
-            })) as unknown as TestConnectionResponse | undefined;
-
-            if (!response) {
-                this.setState({ testStatus: { kind: 'failure', message: I18n.t('Connection failed') } });
-                return;
-            }
-
-            if (response.result === 'success') {
-                this.setState({
-                    testStatus: {
-                        kind: 'success',
-                        manufacturer: response.manufacturer,
-                        model: response.model,
-                    },
-                });
-            } else {
-                this.setState({
-                    testStatus: { kind: 'failure', message: response.message || I18n.t('Connection failed') },
-                });
-            }
-        } catch (e: any) {
-            this.setState({
-                testStatus: { kind: 'failure', message: (e && e.message) || I18n.t('Connection failed') },
-            });
-        }
-    }
-
-    private renderTestStatus(): React.ReactNode {
-        const { testStatus } = this.state;
-
-        switch (testStatus.kind) {
-            case 'idle':
-                return null;
-            case 'testing':
-                return (
-                    <div style={styles.status}>
-                        <CircularProgress size={20} />
-                        <Typography style={styles.statusText}>{I18n.t('Testing…')}</Typography>
-                    </div>
-                );
-            case 'success': {
-                const parts = [testStatus.manufacturer, testStatus.model].filter(Boolean).join(' ');
-                const text = parts ? `${I18n.t('Connection successful')} (${parts})` : I18n.t('Connection successful');
-                return (
-                    <div style={styles.status}>
-                        <Typography style={{ ...styles.statusText, ...styles.success }}>{text}</Typography>
-                    </div>
-                );
-            }
-            case 'failure':
-                return (
-                    <div style={styles.status}>
-                        <Typography style={{ ...styles.statusText, ...styles.failure }}>
-                            {`${I18n.t('Connection failed')}: ${testStatus.message}`}
-                        </Typography>
-                    </div>
-                );
-            default:
-                return null;
-        }
     }
 
     /**
@@ -434,9 +312,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
 
     render(): React.JSX.Element {
         const errors = this.errors();
-        const anyInvalid = Object.keys(errors).length > 0;
-        const testing = this.state.testStatus.kind === 'testing';
-        const socketAvailable = !!this.props.socket;
 
         return (
             <form style={{ padding: 16 }}>
@@ -450,19 +325,6 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                         'pollInterval',
                         !!errors.pollInterval,
                     )}
-                </div>
-
-                <div>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        style={styles.button}
-                        disabled={anyInvalid || testing || !socketAvailable}
-                        onClick={() => void this.onTestConnection()}
-                    >
-                        {I18n.t('Test Connection')}
-                    </Button>
-                    {this.renderTestStatus()}
                 </div>
 
                 {this.renderValueTable()}
