@@ -272,6 +272,10 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* fix log priority for modbus write op
+* fix translation in io-package.json
+
 ### 1.1.1 (2026-10-15)
 * fix size attributes
 
