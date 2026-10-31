@@ -272,7 +272,7 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
-### **WORK IN PROGRESS**
+### 1.1.2 (2026-10-31)
 * fix log priority for modbus write op
 * fix translation in io-package.json
 
@@ -290,11 +290,6 @@ Developers: see [README_dev.md](README_dev.md) for build, test and release instr
 ### 1.0.20 (2026-10-15)
 * Removed the manual connection-test button from the Admin UI configuration
 * Removed static Sunspec Register Tables from Admin UI, added them to doc in Readme.md
-
-### 1.0.19 (2026-10-15)
-* fix vite watch config
-* fix reactive power roles
-* fix energy state roles
 
 [Older changelogs can be found there](CHANGELOG_OLD.md)
 

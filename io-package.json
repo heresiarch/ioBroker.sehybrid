@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "news": {
+      "1.1.2": {
+        "en": "fix log priority for modbus write op\nfix translation in io-package.json",
+        "de": "Fix Log-Priorität für Modbus Write Op\nÜbersetzung in io-package.json",
+        "ru": "исправить приоритет журнала для операции записи в modbus\nисправить перевод в io-package.json",
+        "pt": "fix log priority para modbus write op\nfixe a tradução em io-package.json",
+        "nl": "logprioriteit corrigeren voor modbus write op\nvertaling corrigeren in io-package.json",
+        "fr": "fix log priority pour Modbus Write Op\ncorriger la traduction dans io-package.json",
+        "it": "fix log priority per modbus write op\nfix traduzione in io-package.json",
+        "es": "fijar prioridad de registro para Modbus\ncorregir traducción en io-package.json",
+        "pl": "napraw priorytet dziennika dla modbus write op\nnaprawić tłumaczenie w io-package.json",
+        "uk": "виправлено пріоритет журналу для запису modbus op\nвиправлення перекладу в io-package.json",
+        "zh-cn": "修复 modbus 写入操作的日志优先级\n修复 io-package.json 中的翻译"
+      },
       "1.1.1": {
         "en": "fix size attributes",
         "de": "fixe Größenmerkmale",
@@ -80,19 +93,6 @@
         "pl": "naprawiaj problemy przez recenzję iobroker",
         "uk": "виправлення проблем за допомогою огляду iobroker",
         "zh-cn": "通过 iobroker 评论修复问题"
-      },
-      "1.0.16": {
-        "en": "fixed io-package.json\nfixed tests",
-        "de": "io-package.json behoben\nfeste Tests",
-        "ru": "исправленный io-package.json\nфиксированные тесты",
-        "pt": "pacote io-json fixo\ntestes fixos",
-        "nl": "io-package.json opgelost\nvaste tests",
-        "fr": "io-package.json fixe\ntests fixes",
-        "it": "io-package.json fisso\ntest fissi",
-        "es": "paquete io fijo.json\npruebas fijas",
-        "pl": "naprawiono io-package.json\nstałe testy",
-        "uk": "виправлений IO-пакет.json\nфіксовані тести",
-        "zh-cn": "修复了 io-package.js\n固定测试"
       }
     },
     "titleLang": {
