@@ -127,7 +127,7 @@
   - Ask the user if questions arise
   - _Requirements: 2.4_
 
-- [~] 9. Re-review deliverables (MANUAL / PR action — not a code change)
+- [ ] 9. Re-review deliverables (MANUAL / PR action — not a code change)
   - **NOTE**: This step is performed manually against PR #6765; it is not a code edit and is not auto-executable
   - Produce a fresh object dump for the adapter
   - Add the "READY FOR RE-REVIEW" remark to [ioBroker.repositories PR #6765](https://github.com/ioBroker/ioBroker.repositories/pull/6765)
