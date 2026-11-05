@@ -8,6 +8,8 @@ import {
     type StorEdgeControlRegisterDef,
 } from './lib/storedge-control-map';
 import { decodeRegisters, encodeFloat32le, encodeUint32le } from './lib/sunspec-decode';
+import { INVERTER_BASE, getBatteryPresenceAddress, getMeterDidAddress } from './lib/sunspec-map';
+import { SunSpecReader } from './lib/sunspec-reader';
 
 // ===========================================================================
 // Property tests for the StorEdgeControlBlock behaviors main.ts wires: the
@@ -792,5 +794,340 @@ describe('main.ts StorEdgeControlBlock wiring', () => {
                 RUNS,
             );
         });
+    });
+});
+
+// ===========================================================================
+// Bugfix: meter-detection-exception-handling — Task 4
+// Integration tests exercising a full pollOnce() cycle end-to-end.
+//
+// SCOPE / APPROACH
+// -----------------
+// pollOnce() is a private method on `Sehybrid extends utils.Adapter`. Driving
+// it directly requires the heavy `@iobroker/testing` controller harness this
+// repo deliberately avoids (see the note atop src/lib/integration.test.ts and
+// this file's header). Consistent with the rest of this file, these tests
+// mirror main.ts's pollOnce() CYCLE GLUE EXACTLY — the try block that
+// (re)connects, detects+reads the inverter block, probes meter/battery slots,
+// then on success sets `info.connection=true`, logs "Connection ... restored"
+// when recovering, and resets `consecutiveFailures`; the catch block that on
+// ANY thrown error increments `consecutiveFailures`, sets
+// `info.connection=false`, logs `Polling cycle failed: ...`, and closes the
+// socket — while delegating every actual policy decision to the REAL
+// production unit under test: `SunSpecReader.detectInverterModel`,
+// `readInverter`, `detectMeters`, and `detectBatteries`. Nothing about meter
+// detection, the inverter read, or the absent-slot classification is
+// reimplemented here; the fix being validated lives entirely in the real
+// `detectMeters` the harness calls.
+//
+// The two cases cover design Property 1 (end-to-end fix for issue #43: a
+// meterless inverter reads its inverter block fine but rejects the meter DID
+// presence read, and the cycle must still succeed) and Property 2 (genuine
+// failure preservation: a failed inverter block read must still fail the
+// cycle). Validates: Requirements 2.2, 2.3, 2.5, 3.4.
+// ===========================================================================
+
+describe('main.ts pollOnce cycle — meter-detection-exception-handling (issue #43)', () => {
+    /**
+     * Sparse-store read-only Modbus client, mirroring the `MockClient` in
+     * src/lib/sunspec-reader.test.ts. Serves reads from a backing store (unset
+     * addresses default to `defaultWord`) and tracks socket open/closed state so a
+     * cycle's connect/close behavior can be asserted. A configured set of addresses
+     * rejects its read with an `Error`, modeling a Modbus exception (e.g. exception 2
+     * "Illegal data address", which a meterless device answers the presence read
+     * with) or a failed inverter-block read.
+     */
+    class CycleClient implements IModbusClient {
+        private readonly store = new Map<number, number>();
+        private readonly defaultWord: number;
+        private readonly rejectAddrs: Set<number>;
+        private connected = false;
+        /** Number of times {@link close} was invoked across the cycle. */
+        closeCount = 0;
+
+        constructor(rejectAddrs: number[] = [], defaultWord = 0) {
+            this.defaultWord = defaultWord & 0xffff;
+            this.rejectAddrs = new Set(rejectAddrs);
+        }
+
+        setWord(address: number, value: number): this {
+            this.store.set(address, value & 0xffff);
+            return this;
+        }
+
+        private readAt(address: number, length: number): number[] {
+            const out: number[] = new Array<number>(length);
+            for (let i = 0; i < length; i++) {
+                out[i] = this.store.has(address + i) ? (this.store.get(address + i) as number) : this.defaultWord;
+            }
+            return out;
+        }
+
+        connect(_host: string, _port: number, _unitId: number, _timeoutMs?: number): Promise<void> {
+            this.connected = true;
+            return Promise.resolve();
+        }
+
+        readHoldingRegisters(address: number, length: number, _opts?: ModbusReadOptions): Promise<number[]> {
+            if (this.rejectAddrs.has(address)) {
+                return Promise.reject(
+                    new Error(`Modbus readHoldingRegisters at address ${address} failed: Illegal data address`),
+                );
+            }
+            return Promise.resolve(this.readAt(address, length));
+        }
+
+        readInputRegisters(address: number, length: number, _opts?: ModbusReadOptions): Promise<number[]> {
+            return Promise.resolve(this.readAt(address, length));
+        }
+
+        writeSingleRegister(_address: number, _value: number, _opts?: ModbusWriteOptions): Promise<void> {
+            return Promise.resolve();
+        }
+
+        writeMultipleRegisters(_address: number, _values: number[], _opts?: ModbusWriteOptions): Promise<void> {
+            return Promise.resolve();
+        }
+
+        isConnected(): boolean {
+            return this.connected;
+        }
+
+        setDisconnected(): void {
+            this.connected = false;
+        }
+
+        close(): Promise<void> {
+            this.closeCount++;
+            this.connected = false;
+            return Promise.resolve();
+        }
+    }
+
+    /** Records info.connection writes and every log line the cycle emits, by level. */
+    interface CycleObservations {
+        /** The last value written to info.connection (null if never written). */
+        infoConnection: boolean | null;
+        errors: string[];
+        warnings: string[];
+        infos: string[];
+        debugs: string[];
+    }
+
+    /**
+     * Minimal state-manager double: the poll-read/write paths are no-ops here
+     * because this test exercises the connection-status / failure-handling policy
+     * of the cycle, not the per-value state writes (those are covered by the
+     * reader/state-manager unit tests and the StorEdgeControlBlock properties
+     * above). It satisfies the handful of methods pollOnce's happy path calls.
+     */
+    class NoopStateManager {
+        ensureChannel(_channel: string): Promise<void> {
+            return Promise.resolve();
+        }
+        writeValue(_channel: string, _def: unknown, _value: unknown): Promise<void> {
+            return Promise.resolve();
+        }
+        writeStorEdgeValue(_def: unknown, _value: unknown): Promise<void> {
+            return Promise.resolve();
+        }
+    }
+
+    /** StorEdgeControlBlock read window A base (0xE004..0xE00C), mirrors main.ts. */
+    const STOREDGE_A = 0xe004;
+    /** StorEdgeControlBlock read window B base (0xE00D..0xE011), mirrors main.ts. */
+    const STOREDGE_B = 0xe00d;
+    const MAX_CONSECUTIVE_FAILURES = 10;
+
+    /**
+     * Exact mirror of main.ts's pollOnce() cycle glue: the try/catch around
+     * connect → detect+read inverter → probe meters/batteries → StorEdge read,
+     * with the success tail (info.connection=true, restored-log, reset failures)
+     * and the failure tail (increment failures, info.connection=false, log
+     * "Polling cycle failed", close the socket). Every policy decision is delegated
+     * to the REAL collaborators passed in (`reader`, `client`, `stateManager`); only
+     * the thin cycle orchestration main.ts performs is reproduced here.
+     *
+     * @param client - The (recording) Modbus client to read through.
+     * @param reader - The REAL SunSpecReader under test.
+     * @param stateManager - The no-op state manager (per-value writes aren't asserted here).
+     * @param obs - Accumulator for info.connection and log output.
+     * @param consecutiveFailures - Failure count carried into this cycle.
+     * @returns The failure count after the cycle (reset to 0 on success, +1 on failure).
+     */
+    async function runPollOnceCycle(
+        client: CycleClient,
+        reader: SunSpecReader,
+        stateManager: NoopStateManager,
+        obs: CycleObservations,
+        consecutiveFailures: number,
+    ): Promise<number> {
+        const log = {
+            error: (m: string) => obs.errors.push(m),
+            warn: (m: string) => obs.warnings.push(m),
+            info: (m: string) => obs.infos.push(m),
+            debug: (m: string) => obs.debugs.push(m),
+        };
+        const setConnection = (v: boolean): void => {
+            obs.infoConnection = v;
+        };
+
+        try {
+            if (!client.isConnected()) {
+                await client.connect('host', 1502, 1);
+            }
+
+            // --- Inverter block ---
+            const inverterModel = await reader.detectInverterModel(client);
+            if (inverterModel === null) {
+                log.warn('No inverter SunSpec block detected this cycle; retaining previous values');
+            } else {
+                const inverterValues = await reader.readInverter(client, inverterModel);
+                for (const { def, value } of inverterValues) {
+                    await stateManager.writeValue('inverter', def, value);
+                }
+            }
+
+            // --- Meter blocks (the path the fix touches) ---
+            const meters = await reader.detectMeters(client);
+            for (const meter of meters) {
+                const channel = `meter.${meter.index}`;
+                await stateManager.ensureChannel(channel);
+                const values = await reader.readMeterSlot(client, meter);
+                for (const { def, value } of values) {
+                    await stateManager.writeValue(channel, def, value);
+                }
+            }
+
+            // --- Battery blocks ---
+            const batteries = await reader.detectBatteries(client);
+            for (const battery of batteries) {
+                const channel = `battery.${battery.index}`;
+                await stateManager.ensureChannel(channel);
+                const values = await reader.readBatterySlot(client, battery);
+                for (const { def, value } of values) {
+                    await stateManager.writeValue(channel, def, value);
+                }
+            }
+
+            // --- StorEdgeControlBlock read ---
+            const blockWordsA = await client.readHoldingRegisters(STOREDGE_A, 9);
+            const blockWordsB = await client.readHoldingRegisters(STOREDGE_B, 5);
+            void blockWordsA;
+            void blockWordsB;
+            // (Per-value StorEdge writes are a no-op here; the StorEdge decode/write
+            // policy is covered by the properties earlier in this file.)
+            await stateManager.writeStorEdgeValue(undefined, null);
+
+            // Success tail.
+            setConnection(true);
+            if (consecutiveFailures > 0) {
+                log.info('Connection to inverter restored');
+            }
+            return 0;
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            const failures = consecutiveFailures + 1;
+            setConnection(false);
+            log.error(`Polling cycle failed: ${reason}`);
+            try {
+                await client.close();
+            } catch {
+                /* best-effort */
+            }
+            if (failures === MAX_CONSECUTIVE_FAILURES) {
+                log.error(
+                    `${MAX_CONSECUTIVE_FAILURES} consecutive polling cycles failed; the inverter appears unreachable.`,
+                );
+            }
+            return failures;
+        }
+    }
+
+    /** Fresh observation accumulator. */
+    function freshObs(): CycleObservations {
+        return { infoConnection: null, errors: [], warnings: [], infos: [], debugs: [] };
+    }
+
+    // -----------------------------------------------------------------------
+    // Property 1 — End-to-end fix (issue #43): a meterless inverter reads its
+    // inverter block fine but REJECTS the meter DID presence read. The cycle must
+    // still succeed. Validates: Requirements 2.2, 2.3, 2.5.
+    // -----------------------------------------------------------------------
+    it('end-to-end fix: inverter reads OK but the meter DID presence read is rejected → cycle succeeds, connection true, no error, socket open, failures reset', async () => {
+        const obs = freshObs();
+        const reader = new SunSpecReader({
+            warn: (m: string) => obs.warnings.push(m),
+            debug: (m: string) => obs.debugs.push(m),
+        });
+        const stateManager = new NoopStateManager();
+
+        // Inverter block reads fine (model 103 at INVERTER_BASE); all three meter DID
+        // presence reads are REJECTED (a meterless device), as are both battery
+        // presence reads (so the cycle hinges solely on the meter-detection fix and a
+        // clean inverter read). StorEdge windows read as all-zero.
+        const client = new CycleClient([
+            getMeterDidAddress(1),
+            getMeterDidAddress(2),
+            getMeterDidAddress(3),
+            getBatteryPresenceAddress(1),
+            getBatteryPresenceAddress(2),
+        ]).setWord(INVERTER_BASE, 103);
+
+        // Start from a prior failure to also prove the success tail resets the counter
+        // and logs the "restored" line.
+        const failuresAfter = await runPollOnceCycle(client, reader, stateManager, obs, 3);
+
+        expect(obs.infoConnection, 'info.connection must be true on a successful meterless cycle').to.equal(true);
+        expect(failuresAfter, 'consecutiveFailures must reset to 0 on success').to.equal(0);
+        expect(
+            obs.errors.some(e => e.includes('Polling cycle failed')),
+            `no "Polling cycle failed" error must be logged; got: ${JSON.stringify(obs.errors)}`,
+        ).to.equal(false);
+        expect(obs.errors, 'no error-level log at all on a healthy cycle').to.deep.equal([]);
+        // Socket is left open (not closed as a failure response) and still connected.
+        expect(client.closeCount, 'the socket must NOT be closed on a successful cycle').to.equal(0);
+        expect(client.isConnected(), 'the socket must be left open').to.equal(true);
+        // Recovery was logged because we entered with a non-zero failure count.
+        expect(obs.infos.some(i => i.includes('restored'))).to.equal(true);
+        // A debug line per rejected meter slot — absent, never an error (Req 2.4).
+        for (const slot of [1, 2, 3]) {
+            expect(
+                obs.debugs.some(d => d.includes(`slot ${slot}`)),
+                `expected a debug line for absent meter slot ${slot}`,
+            ).to.equal(true);
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // Property 2 — Genuine-failure preservation: the inverter block read itself
+    // fails (throws). The cycle must still fail the way it always has.
+    // Validates: Requirements 3.4.
+    // -----------------------------------------------------------------------
+    it('genuine failure preserved: the inverter block read throws → cycle fails, connection false, "Polling cycle failed" logged, socket closed, failures incremented', async () => {
+        const obs = freshObs();
+        const reader = new SunSpecReader({
+            warn: (m: string) => obs.warnings.push(m),
+            debug: (m: string) => obs.debugs.push(m),
+        });
+        const stateManager = new NoopStateManager();
+
+        // detectInverterModel reads INVERTER_BASE first; reject that read so the
+        // inverter detection/read genuinely fails and the error propagates to the
+        // cycle-level catch, exactly like a real connection/inverter-read failure.
+        const client = new CycleClient([INVERTER_BASE]);
+        // Begin connected so the failure is the read, not the connect.
+        await client.connect('host', 1502, 1);
+
+        const failuresAfter = await runPollOnceCycle(client, reader, stateManager, obs, 2);
+
+        expect(obs.infoConnection, 'info.connection must be false on a genuine failure').to.equal(false);
+        expect(
+            obs.errors.some(e => e.includes('Polling cycle failed')),
+            `a "Polling cycle failed" error must be logged; got: ${JSON.stringify(obs.errors)}`,
+        ).to.equal(true);
+        expect(client.closeCount, 'the socket must be closed on a genuine failure').to.be.greaterThan(0);
+        expect(client.isConnected(), 'the socket must be closed').to.equal(false);
+        expect(failuresAfter, 'consecutiveFailures must be incremented on failure').to.equal(3);
     });
 });
