@@ -139,7 +139,13 @@ class SunSpecReader {
     const detected = [];
     for (const slot of METER_SLOTS) {
       const addr = (0, import_sunspec_map.getMeterDidAddress)(slot);
-      const [raw] = await client.readHoldingRegisters(addr, 1);
+      let raw;
+      try {
+        [raw] = await client.readHoldingRegisters(addr, 1);
+      } catch (e) {
+        this.log.debug(`No meter in slot ${slot}: presence read at ${addr} failed (${describeError(e)})`);
+        continue;
+      }
       if (METER_MODEL_IDS.has(raw)) {
         this.log.debug(`Detected meter.${slot} model ${raw} (DID register ${addr})`);
         detected.push({ index: slot, model: raw });
