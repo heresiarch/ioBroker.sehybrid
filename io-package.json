@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "news": {
+      "1.1.3": {
+        "en": "fix: tolerate rejected meter presence read on meterless inverters",
+        "de": "Fix: toleriert abgelesene Zählerstände an zählerlosen Wechselrichtern",
+        "ru": "исправление: допустимое отклонение показаний счетчика на безизмерительных инверторах",
+        "pt": "correção: tolera a leitura de medidores rejeitados em inversores",
+        "nl": "oplossing: tolereer de weergave van de geweigerde aanwezigheid van meters op omvormers zonder meter",
+        "fr": "correctif : tolère la présence de compteurs rejetés sur les onduleurs",
+        "it": "fix: tollera la presenza di contatori rifiutati su inverter",
+        "es": "solución: tolerar el rechazo de un contador leído en inversores sin contador",
+        "pl": "poprawka: toleruj odrzuconą obecność licznika na falownikach bezlicznikowych",
+        "uk": "виправлення: терпіть наявність відхиленого лічильника, що читається на безлічильних інверторах",
+        "zh-cn": "修复：允许无仪表逆变器上的仪表存在读数被拒绝"
+      },
       "1.1.2": {
         "en": "fix log priority for modbus write op\nfix translation in io-package.json",
         "de": "Fix Log-Priorität für Modbus Write Op\nÜbersetzung in io-package.json",
@@ -80,19 +93,6 @@
         "pl": "odzwierciedla na żywo `RemoteControlCommandMode`: wpisz „0xFFFF” not_IMPLEMENTED sentinel jako „null” na każdej ankiecie zamiast zachować tryb nieaktualny, gdy falownik nie jest w zdalnym sterowaniu\nudokumentuj zachowanie null `RemoteControlCommandMode` w README\nnapraw „test: ts” glob, aby testy modułu głównego faktycznie działały",
         "uk": "відобразити живий `RemoteControlCommandMode`: запишіть сторожовий `0xFFFF` NOT_IMPLEMENTED як `null` на кожному опитуванні замість того, щоб зберігати застарілий режим, коли інвертор не знаходиться в пульті дистанційного керування\nзадокументувати нульову поведінку `RemoteControlCommandMode` у файлі README\nвиправлено глобус `test:ts`, щоб тести основного модуля фактично запускалися",
         "zh-cn": "实时反射 `remoteControlCommandMode`：在每次投票中将 `0xFFFF` NOT_IMPLETED SENTINEL写成 “null”，而不是在逆变器不处于远程控制状态时保持陈旧模式\n在 README 中记录 `remoteControlCommandMode`的空行为\n修复 `test: ts` glob 这样主模块测试才能真正运行"
-      },
-      "1.0.17": {
-        "en": "fix issues by iobroker review",
-        "de": "Probleme per Iobroker Review lösen",
-        "ru": "исправляйте проблемы с помощью обзора iobroker",
-        "pt": "corrija erros da iobroker",
-        "nl": "problemen oplossen door iobroker review",
-        "fr": "résoudre les problèmes signalés par la revue iobroker",
-        "it": "risolvere i problemi segnalati dalla revisione iobroker",
-        "es": "solucionar los problemas detectados por la revisión de iobroker",
-        "pl": "naprawiaj problemy przez recenzję iobroker",
-        "uk": "виправлення проблем за допомогою огляду iobroker",
-        "zh-cn": "通过 iobroker 评论修复问题"
       }
     },
     "titleLang": {
