@@ -275,7 +275,14 @@ export class SunSpecReader implements ISunSpecReader {
         const detected: DetectedMeter[] = [];
         for (const slot of METER_SLOTS) {
             const addr = getMeterDidAddress(slot);
-            const [raw] = await client.readHoldingRegisters(addr, 1);
+            let raw: number;
+            try {
+                [raw] = await client.readHoldingRegisters(addr, 1);
+            } catch (e) {
+                // A meterless device may reject the presence read outright; treat as absent.
+                this.log.debug(`No meter in slot ${slot}: presence read at ${addr} failed (${describeError(e)})`);
+                continue;
+            }
             if (METER_MODEL_IDS.has(raw)) {
                 this.log.debug(`Detected meter.${slot} model ${raw} (DID register ${addr})`);
                 detected.push({ index: slot, model: raw as MeterModelId });

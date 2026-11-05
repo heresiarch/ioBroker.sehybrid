@@ -354,6 +354,168 @@ describe('sunspec-reader', () => {
     });
 
     // -------------------------------------------------------------------------
+    // Bugfix: meter-detection-exception-handling — Task 2
+    // Property 2: Preservation — for every input that does NOT hit the bug
+    // condition (no meter presence read throws), the detector must behave
+    // identically before and after the fix.
+    //
+    // This test captures the baseline on the UNFIXED code: for any assignment of
+    // readable DID values to the three meter slots served by a non-throwing
+    // MockClient, detectMeters returns exactly the slots whose DID is in
+    // METER_MODEL_IDS (201..204), in ascending slot order. It is EXPECTED TO PASS
+    // on the unfixed code and must remain green after the fix.
+    //
+    // Validates: Requirements 3.1, 3.2, 3.5 (present/absent preservation) and
+    // 3.6 (slot-order/probe behavior unchanged). 3.3 (batteries) is covered by the
+    // existing detectBatteries tests, which remain green and untouched.
+    // -------------------------------------------------------------------------
+
+    describe('detectMeters — Property 2: Preservation (non-throwing reads)', () => {
+        /** The recognized meter model DIDs, mirroring the module-private METER_MODEL_IDS. */
+        const METER_MODEL_IDS = new Set<number>([201, 202, 203, 204]);
+
+        it('returns exactly the slots whose readable DID is a recognized model, in ascending slot order', async () => {
+            // Generate a readable DID per slot drawn from a mix of recognized models,
+            // the uint16 sentinel (0xffff), 0, and arbitrary unrecognized uint16s.
+            const didArb = fc.oneof(
+                fc.constantFrom(201, 202, 203, 204), // recognized -> present
+                fc.constantFrom(0, 0xffff), // common "absent" encodings
+                fc.integer({ min: 0, max: 0xffff }), // any other readable uint16
+            );
+
+            await fc.assert(
+                fc.asyncProperty(fc.tuple(didArb, didArb, didArb), async dids => {
+                    const log = new RecordingLogger();
+                    const reader = new SunSpecReader(log);
+                    const client = new MockClient(0)
+                        .setWord(getMeterDidAddress(1), dids[0])
+                        .setWord(getMeterDidAddress(2), dids[1])
+                        .setWord(getMeterDidAddress(3), dids[2]);
+
+                    const detected = await reader.detectMeters(client);
+
+                    // Oracle: present slots are exactly those whose DID is recognized,
+                    // in ascending slot order, each mapped to { index, model }.
+                    const expected = ([1, 2, 3] as const)
+                        .filter(slot => METER_MODEL_IDS.has(dids[slot - 1]))
+                        .map(slot => ({ index: slot, model: dids[slot - 1] }));
+
+                    expect(detected).to.deep.equal(expected);
+
+                    // Non-throwing reads never produce a warning.
+                    expect(log.warnings).to.deep.equal([]);
+                }),
+                { numRuns: 200 },
+            );
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // Bugfix: meter-detection-exception-handling — Task 1
+    // Property 1: Bug Condition — a rejected meter presence read must be treated
+    // as an absent slot, NOT propagated as a cycle failure.
+    //
+    // These tests encode the EXPECTED (post-fix) behavior and are EXPECTED TO FAIL
+    // on the current unfixed code (detectMeters has no try/catch around the
+    // per-slot presence read, so a thrown read rejects/propagates). That failure
+    // confirms the bug exists.
+    //
+    // Validates: Requirements 1.1, 1.2, 1.3, 1.4 (bug condition) and the expected
+    // behavior in 2.1, 2.2, 2.4.
+    // -------------------------------------------------------------------------
+
+    describe('detectMeters — rejected presence read (bug condition)', () => {
+        /**
+         * Client that mirrors a meterless device: it REJECTS the presence read for a
+         * configured set of meter DID addresses (throwing an `Error`, as the real
+         * Modbus client does for a Modbus exception 2 / Illegal data address) and
+         * otherwise delegates to {@link MockClient}. Mirrors the `SegmentedBatteryClient`
+         * pattern used elsewhere in this file.
+         */
+        class ThrowingMeterClient extends MockClient {
+            private readonly rejectAddrs: Set<number>;
+            constructor(rejectAddrs: number[], defaultWord = 0) {
+                super(defaultWord);
+                this.rejectAddrs = new Set(rejectAddrs);
+            }
+            readHoldingRegisters(address: number, length: number, opts?: ModbusReadOptions): Promise<number[]> {
+                if (this.rejectAddrs.has(address)) {
+                    return Promise.reject(
+                        new Error(`Modbus readHoldingRegisters at address ${address} failed: Illegal data address`),
+                    );
+                }
+                return super.readHoldingRegisters(address, length, opts);
+            }
+        }
+
+        it('slot-1 presence read throws while slots 2 & 3 read recognized DIDs (203, 201) → returns slots 2 & 3, logs a debug line for slot 1', async () => {
+            const log = new RecordingLogger();
+            const reader = new SunSpecReader(log);
+            const client = new ThrowingMeterClient([getMeterDidAddress(1)])
+                .setWord(getMeterDidAddress(2), 203) // meter.2 present, model 203
+                .setWord(getMeterDidAddress(3), 201); // meter.3 present, model 201
+
+            // Expected (post-fix): resolves without throwing, returns only present slots.
+            const detected = await reader.detectMeters(client);
+            expect(detected).to.deep.equal([
+                { index: 2, model: 203 },
+                { index: 3, model: 201 },
+            ]);
+
+            // A debug line is recorded for the rejected slot and no warning is produced.
+            const loggedSlot1 = log.debugs.some(d => d.includes('slot 1'));
+            expect(loggedSlot1, `expected a debug line for rejected slot 1; got: ${JSON.stringify(log.debugs)}`).to.equal(
+                true,
+            );
+            expect(log.warnings).to.deep.equal([]);
+        });
+
+        it('all three meter presence reads throw (meterless inverter) → returns [] without throwing, logs a debug line per slot', async () => {
+            const log = new RecordingLogger();
+            const reader = new SunSpecReader(log);
+            const client = new ThrowingMeterClient([
+                getMeterDidAddress(1),
+                getMeterDidAddress(2),
+                getMeterDidAddress(3),
+            ]);
+
+            // Expected (post-fix): resolves to [] (no meter present), never throws.
+            const detected = await reader.detectMeters(client);
+            expect(detected).to.deep.equal([]);
+
+            // One debug line per rejected slot, no warnings/errors.
+            for (const slot of [1, 2, 3]) {
+                const logged = log.debugs.some(d => d.includes(`slot ${slot}`));
+                expect(logged, `expected a debug line for rejected slot ${slot}; got: ${JSON.stringify(log.debugs)}`).to.equal(
+                    true,
+                );
+            }
+            expect(log.warnings).to.deep.equal([]);
+        });
+
+        it('slot 1 present (203), slot-2 presence read throws, slot 3 present (201) → returns slots 1 & 3, logs a debug line for slot 2', async () => {
+            const log = new RecordingLogger();
+            const reader = new SunSpecReader(log);
+            const client = new ThrowingMeterClient([getMeterDidAddress(2)])
+                .setWord(getMeterDidAddress(1), 203) // meter.1 present, model 203
+                .setWord(getMeterDidAddress(3), 201); // meter.3 present, model 201
+
+            // Expected (post-fix): slot 2 treated as absent, slots 1 & 3 returned.
+            const detected = await reader.detectMeters(client);
+            expect(detected).to.deep.equal([
+                { index: 1, model: 203 },
+                { index: 3, model: 201 },
+            ]);
+
+            const loggedSlot2 = log.debugs.some(d => d.includes('slot 2'));
+            expect(loggedSlot2, `expected a debug line for rejected slot 2; got: ${JSON.stringify(log.debugs)}`).to.equal(
+                true,
+            );
+            expect(log.warnings).to.deep.equal([]);
+        });
+    });
+
+    // -------------------------------------------------------------------------
     // Task 17.3 — detectBatteries (Req 10.1)
     // -------------------------------------------------------------------------
 
