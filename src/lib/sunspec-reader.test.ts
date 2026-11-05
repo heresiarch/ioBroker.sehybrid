@@ -464,9 +464,10 @@ describe('sunspec-reader', () => {
 
             // A debug line is recorded for the rejected slot and no warning is produced.
             const loggedSlot1 = log.debugs.some(d => d.includes('slot 1'));
-            expect(loggedSlot1, `expected a debug line for rejected slot 1; got: ${JSON.stringify(log.debugs)}`).to.equal(
-                true,
-            );
+            expect(
+                loggedSlot1,
+                `expected a debug line for rejected slot 1; got: ${JSON.stringify(log.debugs)}`,
+            ).to.equal(true);
             expect(log.warnings).to.deep.equal([]);
         });
 
@@ -486,9 +487,10 @@ describe('sunspec-reader', () => {
             // One debug line per rejected slot, no warnings/errors.
             for (const slot of [1, 2, 3]) {
                 const logged = log.debugs.some(d => d.includes(`slot ${slot}`));
-                expect(logged, `expected a debug line for rejected slot ${slot}; got: ${JSON.stringify(log.debugs)}`).to.equal(
-                    true,
-                );
+                expect(
+                    logged,
+                    `expected a debug line for rejected slot ${slot}; got: ${JSON.stringify(log.debugs)}`,
+                ).to.equal(true);
             }
             expect(log.warnings).to.deep.equal([]);
         });
@@ -508,9 +510,10 @@ describe('sunspec-reader', () => {
             ]);
 
             const loggedSlot2 = log.debugs.some(d => d.includes('slot 2'));
-            expect(loggedSlot2, `expected a debug line for rejected slot 2; got: ${JSON.stringify(log.debugs)}`).to.equal(
-                true,
-            );
+            expect(
+                loggedSlot2,
+                `expected a debug line for rejected slot 2; got: ${JSON.stringify(log.debugs)}`,
+            ).to.equal(true);
             expect(log.warnings).to.deep.equal([]);
         });
     });
