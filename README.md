@@ -272,6 +272,9 @@ Please report issues at [GitHub Issues](https://github.com/heresiarch/ioBroker.s
 Developers: see [README_dev.md](README_dev.md) for build, test and release instructions.
 
 ## Changelog
+### **WORK IN PROGRESS**
+* fix GH workflows
+
 ### 1.1.3 (2026-11-05)
 fix: tolerate rejected meter presence read on meterless inverters
 
