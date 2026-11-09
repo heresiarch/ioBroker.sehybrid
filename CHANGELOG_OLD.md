@@ -1,4 +1,7 @@
 # Older changes
+## 1.0.21 (2026-10-15)
+* fix GH workflow lint errors
+
 ## 1.0.20 (2026-10-15)
 * Removed the manual connection-test button from the Admin UI configuration
 * Removed static Sunspec Register Tables from Admin UI, added them to doc in Readme.md

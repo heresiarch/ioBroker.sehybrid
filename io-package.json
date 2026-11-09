@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "sehybrid",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "news": {
+      "1.1.4": {
+        "en": "fix GH workflows",
+        "de": "Fix GH-Workflows",
+        "ru": "исправить рабочие процессы GH",
+        "pt": "fixar fluxos GH",
+        "nl": "GH-workflows repareren",
+        "fr": "fix GH Workflows",
+        "it": "fix GH workflow",
+        "es": "arreglar GH workflows",
+        "pl": "naprawić przepływy pracy GH",
+        "uk": "виправлення робочих процесів GH",
+        "zh-cn": "修复 GH 工作流程"
+      },
       "1.1.3": {
         "en": "fix: tolerate rejected meter presence read on meterless inverters",
         "de": "Fix: toleriert abgelesene Zählerstände an zählerlosen Wechselrichtern",
@@ -80,19 +93,6 @@
         "pl": "fix vite watch config\nustalić role mocy biernej\nustalić role stanu energii",
         "uk": "виправлення конфігурації годинника vite\nфіксувати ролі реактивної потужності\nфіксувати ролі енергетичного стану",
         "zh-cn": "修复 vite 手表配置\n修复无功功率角色\n修复能量状态角色"
-      },
-      "1.0.18": {
-        "en": "reflect live `remoteControlCommandMode`: write the `0xFFFF` NOT_IMPLEMENTED sentinel through as `null` on every poll instead of retaining a stale mode when the inverter is not in Remote Control\ndocument the `remoteControlCommandMode` null behavior in the README\nfix the `test:ts` glob so the main-module tests actually run",
-        "de": "Reflect live `RemoteControlCommandMode`: Sentinel `0xFFFF` NOT_IMPLEMENTED bei jedem Abruf als `Null` durchschreiben, anstatt den alten Modus beizubehalten, wenn der Inverter nicht ferngesteuert ist\nNull-Verhalten von `RemoteControlCommandMode` in der README\nFix den `test:ts`-Globus, damit die Hauptmodultests laufen",
-        "ru": "отразите «RemoteControlCommandMode» в реальном времени: вместо того, чтобы сохранять устаревший режим, когда инвертор не включен в пульт дистанционного управления, записывайте сигнал «0xFFFF» NOT_IMPLEMENTED как «null»\nзадокументируйте нулевое поведение «RemoteControlCommandMode» в README\nисправьте глобус `test:ts`, чтобы тесты основного модуля действительно запускались",
-        "pt": "reflita `remoteControlCommandMode` ao vivo: escreva a sentinela `0xFFFF` NOT_IMPLEMENTED como `null` em cada enquete em vez de manter o modo obsoleto quando o inversor não está no controle remoto\ndocumente o comportamento nulo do `remoteControlCommandMode` no README\ncorrija o globo `test:ts` para rodar os testes do módulo principal",
-        "nl": "reflect live `RemoteControlCommandMode`: schrijf de `0xFFFF` NOT_IMPLEMENTATED sentinel door als `null` bij elke peiling in plaats van een verouderde modus te behouden wanneer de omvormer niet op de afstandsbediening staat\ndocumenteer het nulgedrag van `RemoteControlCommandMode` in de README\nrepareer de `test:ts` glob zodat de tests van de hoofdmodule daadwerkelijk worden uitgevoerd",
-        "fr": "reflétez « RemoteControlCommandMode » en direct : inscrivez la sentinelle NOT_IMPLEMENTED « 0xFFFF » en tant que « null » à chaque sondage au lieu de rester en mode obsolète lorsque l'onduleur n'est pas télécommandé\ndocumente le comportement nul de RemoteControlCommandMode dans le README\ncorriger le glob « test:ts » pour lancer les tests du module principal",
-        "it": "rifletta `RemoteControlCommandMode` in tempo reale: scriva la sentinella `0xFFFF` NOT_IMPLEMENTED come `null` in ogni sondaggio invece di mantenere la modalità obsoleta\ndocumenta il comportamento nullo `RemoteControlCommandMode` nel README\naggiusta il glob `test:ts` in modo che i test del modulo principale",
-        "es": "reflect live `RemoteControlCommandMode`: escriba el centinela NOT_IMPLEMENTED 0xFFF como «nulo» en cada encuesta en lugar de mantener un modo obsoleto cuando el inversor no está en el mando a distancia\ndocumentar el comportamiento nulo de `RemoteControlCommandMode` en el README\narreglar el glob `test:ts` para que las pruebas del módulo principal se ejecuten",
-        "pl": "odzwierciedla na żywo `RemoteControlCommandMode`: wpisz „0xFFFF” not_IMPLEMENTED sentinel jako „null” na każdej ankiecie zamiast zachować tryb nieaktualny, gdy falownik nie jest w zdalnym sterowaniu\nudokumentuj zachowanie null `RemoteControlCommandMode` w README\nnapraw „test: ts” glob, aby testy modułu głównego faktycznie działały",
-        "uk": "відобразити живий `RemoteControlCommandMode`: запишіть сторожовий `0xFFFF` NOT_IMPLEMENTED як `null` на кожному опитуванні замість того, щоб зберігати застарілий режим, коли інвертор не знаходиться в пульті дистанційного керування\nзадокументувати нульову поведінку `RemoteControlCommandMode` у файлі README\nвиправлено глобус `test:ts`, щоб тести основного модуля фактично запускалися",
-        "zh-cn": "实时反射 `remoteControlCommandMode`：在每次投票中将 `0xFFFF` NOT_IMPLETED SENTINEL写成 “null”，而不是在逆变器不处于远程控制状态时保持陈旧模式\n在 README 中记录 `remoteControlCommandMode`的空行为\n修复 `test: ts` glob 这样主模块测试才能真正运行"
       }
     },
     "titleLang": {
